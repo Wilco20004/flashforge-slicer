@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3
+
+- **Camera reliability.** The printer's camera server restarts when told to start
+  streaming and resets any connection that arrives in that moment. Monitor now
+  waits a second after starting the stream and retries with backoff (up to five
+  attempts) before reporting a failure, showing "Starting camera…" meanwhile.
+
 ## 0.3.2
 
 - **Camera fix.** The stream is now requested with the exact URL the printer

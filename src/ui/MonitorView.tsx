@@ -22,6 +22,18 @@ export function MonitorView(p: MonitorViewProps) {
   const [camera, setCamera] = useState(false);
   const [camKey, setCamKey] = useState(0);
   const [camError, setCamError] = useState(false);
+  /** The printer's camera server restarts on "stream open" and resets connections that arrive
+   *  meanwhile, so the <img> is mounted after a short delay and re-tried with backoff. */
+  const [camReady, setCamReady] = useState(false);
+  const attempts = useRef(0);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const MAX_ATTEMPTS = 5;
+  const armImage = (delayMs: number) => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    setCamReady(false);
+    retryTimer.current = setTimeout(() => { setCamKey((k) => k + 1); setCamReady(true); }, delayMs);
+  };
+  useEffect(() => () => { if (retryTimer.current) clearTimeout(retryTimer.current); }, []);
   const [camDiag, setCamDiag] = useState<string | null>(null);
   /** When the <img> fails, ask for the stream headers once so the message says why. */
   const diagnose = async (url: string) => {
@@ -60,8 +72,19 @@ export function MonitorView(p: MonitorViewProps) {
     if (!hasCamera) return;
     if (!touched.current) { if (!camera) return; touched.current = true; }
     setCameraStream(p.cfg, p.relay, camera).catch(() => { /* older firmware streams regardless */ });
-    if (camera) { setCamError(false); setCamKey((k) => k + 1); }
+    if (camera) { setCamError(false); setCamDiag(null); attempts.current = 0; armImage(1200); }
+    else if (retryTimer.current) clearTimeout(retryTimer.current);
   }, [camera, hasCamera]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onImageError = () => {
+    attempts.current += 1;
+    if (attempts.current < MAX_ATTEMPTS) {
+      // 1 s, 2 s, 3 s, 4 s — the printer's streamer is usually back within a second
+      armImage(1000 * attempts.current);
+      return;
+    }
+    setCamError(true);
+    diagnose(cam ?? '');
+  };
 
   const run = async (label: string, fn: () => Promise<unknown>, confirmText?: string) => {
     if (confirmText && !window.confirm(confirmText)) return;
@@ -78,8 +101,10 @@ export function MonitorView(p: MonitorViewProps) {
   return (
     <div className="monitor">
       <div className="monitor-camera">
-        {camera && cam && !camError ? (
-          <img key={camKey} src={cam} alt="Printer camera" onError={() => { setCamError(true); diagnose(cam); }} />
+        {camera && cam && !camError && camReady ? (
+          <img key={camKey} src={cam} alt="Printer camera" onError={onImageError} />
+        ) : camera && cam && !camError ? (
+          <div className="camera-placeholder"><p>Starting camera{attempts.current ? ` (attempt ${attempts.current + 1} of ${MAX_ATTEMPTS})` : ''}…</p></div>
         ) : (
           <div className="camera-placeholder">
             {!d ? <p>Waiting for the printer…</p>
@@ -103,7 +128,7 @@ export function MonitorView(p: MonitorViewProps) {
                   The camera stream did not load from <code>{cam}</code>.
                   {camDiag ? <><br /><small>{camDiag}</small></> : null}
                   {pageIsHttps() && !p.relay ? ' On an HTTPS page the stream needs the relay (Docker / Home Assistant version).' : ''}
-                  {' '}<button className="btn small ghost" onClick={() => { setCamError(false); setCamDiag(null); setCamKey((k) => k + 1); }}>Retry</button>
+                  {' '}<button className="btn small ghost" onClick={() => { setCamError(false); setCamDiag(null); attempts.current = 0; armImage(300); }}>Retry</button>
                   {p.customCameraUrl ? <button className="btn small ghost" onClick={() => { p.onCustomCameraUrl(''); setCamera(false); setCamError(false); }}>Clear URL</button> : null}
                 </p>
               )
