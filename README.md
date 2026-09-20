@@ -30,6 +30,25 @@ engine runs in a Web Worker on your machine and nothing is uploaded anywhere.
 
 ## Running it
 
+**Home Assistant add-on** — add `https://github.com/wilco20004/planty` as an add-on
+repository (Settings → Add-ons → Add-on Store → ⋮ → Repositories), install
+**Planty Slicer**, start it and open **Slicer** from the sidebar. It is served via
+Ingress; port 8099 can optionally be exposed for direct access. `config.yaml`,
+`Dockerfile`, `nginx.conf` and `DOCS.md` in this folder make up the add-on.
+
+**Docker** — from the repository root:
+
+```bash
+docker compose up -d planty-slicer     # http://<host>:8081
+# or build the image on its own
+docker build -t planty-slicer slicer && docker run -d -p 8081:8099 planty-slicer
+```
+
+The image is nginx serving the static build (about 10 MB). It keeps no state:
+settings live in each browser's localStorage.
+
+**Development / static hosting**
+
 ```bash
 npm install                    # from the repository root
 npm run dev:slicer             # http://localhost:5173
