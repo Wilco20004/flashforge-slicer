@@ -1,5 +1,5 @@
-# Publishes the slicer to GitHub Pages. Enable Pages for the repository first
-# (Settings → Pages → Source: GitHub Actions).
+# Publishes the slicer to GitHub Pages. The configure-pages step enables Pages
+# (source: GitHub Actions) on first run, so no manual setup is needed.
 name: Deploy to GitHub Pages
 on:
   push:
@@ -21,6 +21,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - run: npm ci
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
