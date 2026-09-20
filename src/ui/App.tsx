@@ -4,6 +4,10 @@ import { Viewport } from './Viewport';
 import { SettingsPanel } from './SettingsPanel';
 import { ObjectsPanel } from './ObjectsPanel';
 import { OutputPanel, defaultPrinterConfig, type PrinterConfig } from './OutputPanel';
+import { MonitorView } from './MonitorView';
+import { usePrinterStatus } from './usePrinterStatus';
+import { relayAvailable } from '../printer/relay';
+import { isPrintingStatus, statusLabel } from '../printer/flashforge';
 import { createPlateObject, arrangeObjects, worldPositions, worldBounds, worldMatrix, type PlateObject, type Transform } from './model';
 import { loadModelFile, SUPPORTED_EXTENSIONS } from '../geometry/loaders';
 import { mergeMeshes } from '../geometry/mesh';
@@ -86,7 +90,9 @@ export function App() {
 
   const [objects, setObjects] = useState<PlateObject[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'prepare' | 'preview'>('prepare');
+  const [mode, setMode] = useState<'prepare' | 'preview' | 'monitor'>('prepare');
+  const [relay, setRelay] = useState<boolean | null>(null);
+  useEffect(() => { relayAvailable().then(setRelay); }, []);
   const [progress, setProgress] = useState<{ stage: string; fraction: number } | null>(null);
   const [result, setResult] = useState<SliceOutput | null>(null);
   const [resultStale, setResultStale] = useState(false);
@@ -230,6 +236,12 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [mode, result]);
 
+  const ff = persisted.printer.ff;
+  const printerConfigured = Boolean(ff.host && ff.serialNumber && ff.checkCode) && persisted.printer.kind === 'flashforge';
+  const printerStatus = usePrinterStatus(printerConfigured ? ff : null, relay, mode === 'monitor');
+  const live = printerStatus.detail;
+  const printerPct = live?.printProgress != null && isPrintingStatus(live.status) ? Math.round(live.printProgress * 100) : null;
+
   const layerZ = result && visibleLayers > 0 ? result.layerZs[Math.min(visibleLayers, result.layerZs.length) - 1] : 0;
 
   return (
@@ -245,6 +257,9 @@ export function App() {
         <div className="modes">
           <button className={mode === 'prepare' ? 'tab active' : 'tab'} onClick={() => setMode('prepare')}>Prepare</button>
           <button className={mode === 'preview' ? 'tab active' : 'tab'} disabled={!result} onClick={() => setMode('preview')}>Preview</button>
+          <button className={mode === 'monitor' ? 'tab active' : 'tab'} disabled={!printerConfigured} title={printerConfigured ? 'Live printer status and camera' : 'Set up the printer under Send to printer first'} onClick={() => setMode('monitor')}>
+            Monitor{live ? <span className={`live-chip ${isPrintingStatus(live.status) ? 'live' : ''}`}>{printerPct !== null ? `${printerPct}%` : statusLabel(live.status)}</span> : null}
+          </button>
         </div>
         <div className="actions">
           <input ref={fileInput} type="file" accept={SUPPORTED_EXTENSIONS.join(',')} multiple hidden onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
@@ -291,6 +306,11 @@ export function App() {
             <button className="btn ghost" onClick={addSample}>Try the sample model</button>
           </div>
         )}
+        {mode === 'monitor' && printerConfigured && (
+          <div className="overlay monitor-overlay">
+            <MonitorView cfg={ff} relay={Boolean(relay)} detail={live} error={printerStatus.error} updatedAt={printerStatus.updatedAt} onRefresh={printerStatus.refresh} />
+          </div>
+        )}
         {mode === 'preview' && result && (
           <div className="layer-controls">
             <div className="legend">
@@ -318,6 +338,7 @@ export function App() {
         <OutputPanel
           result={result} fileName={fileName} stale={resultStale}
           printer={persisted.printer} onPrinter={(printer) => setPersisted((p) => ({ ...p, printer }))}
+          onPrintStarted={() => { setMode('monitor'); setTimeout(printerStatus.refresh, 1500); }}
         />
       </aside>
     </div>

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+- **Monitor mode.** A third tab next to Prepare and Preview shows the live state
+  of the saved printer: status, progress, current layer, remaining and elapsed
+  time, nozzle/bed temperatures, speed, fan, filament and firmware, refreshed
+  every 3 s while open (10 s in the background, paused when the tab is hidden).
+  The tab itself shows the live percentage.
+- **Camera.** On printers that report a camera (Adventurer 5M Pro built-in, or a
+  supported USB camera on the 5M) the MJPEG stream is shown in Monitor mode,
+  relayed by the server so it also works from HTTPS pages and Home Assistant
+  Ingress. Stream start/stop and the LED light are controlled from the same view.
+- **Job control.** Pause, resume and cancel (with confirmation) from Monitor mode.
+- "Upload & print" switches to Monitor mode automatically.
+
 ## 0.2.1
 
 - **Settings follow you.** When run as the add-on or Docker image, presets,

@@ -27,6 +27,7 @@ Run it as a static site, as a Docker container, or as a Home Assistant add-on.
   - print-time estimate from a trapezoidal motion planner with junction slow-down; filament length / weight
 - **Preview**: 3D toolpath view coloured by feature type, layer slider (arrow keys work too), travel moves toggle.
 - **Profiles**: Adventurer 5M and 5M Pro with 0.25 / 0.4 / 0.6 / 0.8 mm nozzles; PLA, HS PLA, Silk PLA, PETG, ABS, ASA, TPU; quality presets from 0.08 mm to 0.56 mm. Any setting can be overridden; overrides are highlighted. Settings and the saved printer persist in the browser, and on the server when run as the Docker image / Home Assistant add-on so all your devices share them.
+- **Monitor** (Docker / Home Assistant versions): live status of the saved printer — progress, layer, remaining time, temperatures, speed and fan — with pause / resume / cancel, LED light control and the printer's camera stream (Adventurer 5M Pro built-in camera, or a supported USB camera on the 5M), all relayed by the server.
 - **Send to printer** (Docker / Home Assistant versions):
   - *Flashforge LAN API* (port 8898, firmware 2.6.6+): upload, or upload and start printing, with optional bed levelling — the same API Orca-Flashforge uses.
   - *Moonraker* for a 5M running the community Klipper mod.

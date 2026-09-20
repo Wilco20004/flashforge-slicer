@@ -33,6 +33,7 @@ export interface OutputPanelProps {
   stale: boolean;
   printer: PrinterConfig;
   onPrinter: (c: PrinterConfig) => void;
+  onPrintStarted?: () => void;
 }
 
 export function OutputPanel(p: OutputPanelProps) {
@@ -67,6 +68,7 @@ export function OutputPanel(p: OutputPanelProps) {
           Boolean(relay), (f) => setStatus({ kind: 'info', text: `Uploading… ${(f * 100).toFixed(0)}%` }));
       }
       setStatus({ kind: 'ok', text: printNow ? 'Uploaded and print started.' : 'Uploaded to the printer.' });
+      if (printNow && p.printer.kind === 'flashforge') p.onPrintStarted?.();
     } catch (e) {
       setStatus({ kind: 'err', text: e instanceof Error ? e.message : String(e) });
     } finally { setBusy(false); }

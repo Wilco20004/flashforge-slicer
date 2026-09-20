@@ -28,6 +28,15 @@ Settings, presets, overrides and the saved printer are stored by the add-on (in 
 - **Moonraker**: for a 5M running the community Klipper mod. Enter its IP and
   port (default 7125); the add-on relays the upload the same way.
 
+## Watching a print
+
+Once a printer has been tested and saved, the **Monitor** tab shows its live
+status: progress, current layer, remaining and elapsed time, nozzle and bed
+temperatures, speed and fan. From there you can pause, resume or cancel the
+print and toggle the LED light. On an Adventurer 5M Pro (or a 5M with a
+supported USB camera) tick **Camera** to see the live stream. "Upload & print"
+opens Monitor automatically.
+
 ## Notes
 
 - The add-on has no options; its only state is the shared settings file in `/data`.

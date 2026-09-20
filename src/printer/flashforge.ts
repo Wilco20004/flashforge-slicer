@@ -7,7 +7,7 @@
  * (Docker / Home Assistant add-on); otherwise straight to the printer, which only
  * works from an http:// page and if the firmware answers CORS preflights.
  */
-import { explainNetworkFailure, relayUrl } from './relay';
+import { explainNetworkFailure, isPrivateIPv4, relayUrl } from './relay';
 
 export interface FlashforgeConfig {
   host: string; // IP or hostname, optional :port
@@ -119,4 +119,102 @@ async function parseResponse(res: Response): Promise<ApiResponse> {
     throw new Error(`Printer API error ${body.code ?? res.status}: ${body.message ?? text.slice(0, 200)}`);
   }
   return body;
+}
+
+// ---------------------------------------------------------------------------
+// Live status and control
+// ---------------------------------------------------------------------------
+
+/** Subset of the POST /detail payload the UI uses (all optional: firmware differs). */
+export interface PrinterDetail {
+  status?: string;            // ready | heating | printing | pause | completed | cancel | error | busy
+  name?: string;
+  firmwareVersion?: string;
+  pid?: number;               // 35 = 5M, 36 = 5M Pro
+  printFileName?: string;
+  printProgress?: number;     // 0..1
+  printLayer?: number;
+  targetPrintLayer?: number;
+  estimatedTime?: number;     // seconds remaining
+  printDuration?: number;     // seconds elapsed
+  rightTemp?: number;
+  rightTargetTemp?: number;
+  platTemp?: number;
+  platTargetTemp?: number;
+  chamberTemp?: number;
+  currentPrintSpeed?: number; // percent
+  coolingFanSpeed?: number;   // percent
+  lightStatus?: 'open' | 'close' | string;
+  doorStatus?: string;
+  errorCode?: string;
+  cameraStreamUrl?: string;   // "http://<ip>:8080/?action=stream", empty without a camera
+  nozzleModel?: string;
+  rightFilamentType?: string;
+  zAxisCompensation?: number;
+}
+
+export async function fetchDetail(cfg: FlashforgeConfig, relay: boolean): Promise<PrinterDetail> {
+  const res = await getDetail(cfg, relay);
+  const d = (res as { detail?: PrinterDetail }).detail;
+  if (!d || typeof d !== 'object') throw new Error('Printer answered without a detail block');
+  return d;
+}
+
+export type ControlCommand =
+  | { cmd: 'jobCtl_cmd'; args: { jobID: string; action: 'pause' | 'continue' | 'cancel' } }
+  | { cmd: 'lightControl_cmd'; args: { status: 'open' | 'close' } }
+  | { cmd: 'streamCtrl_cmd'; args: { action: 'open' | 'close' } }
+  | { cmd: 'temperatureCtl_cmd'; args: { rightNozzle?: number; platform?: number } }
+  | { cmd: 'printerCtl_cmd'; args: { speed?: number; coolingFan?: number; zAxisCompensation?: number } };
+
+export async function sendControl(cfg: FlashforgeConfig, relay: boolean, payload: ControlCommand): Promise<ApiResponse> {
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(cfg, 'control', relay), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serialNumber: cfg.serialNumber, checkCode: cfg.checkCode, payload }),
+    });
+  } catch {
+    throw new Error(explainNetworkFailure(relay));
+  }
+  return parseResponse(res);
+}
+
+export const pausePrint = (cfg: FlashforgeConfig, relay: boolean) => sendControl(cfg, relay, { cmd: 'jobCtl_cmd', args: { jobID: '', action: 'pause' } });
+export const resumePrint = (cfg: FlashforgeConfig, relay: boolean) => sendControl(cfg, relay, { cmd: 'jobCtl_cmd', args: { jobID: '', action: 'continue' } });
+export const cancelPrint = (cfg: FlashforgeConfig, relay: boolean) => sendControl(cfg, relay, { cmd: 'jobCtl_cmd', args: { jobID: '', action: 'cancel' } });
+export const setLight = (cfg: FlashforgeConfig, relay: boolean, on: boolean) => sendControl(cfg, relay, { cmd: 'lightControl_cmd', args: { status: on ? 'open' : 'close' } });
+export const setCameraStream = (cfg: FlashforgeConfig, relay: boolean, on: boolean) => sendControl(cfg, relay, { cmd: 'streamCtrl_cmd', args: { action: on ? 'open' : 'close' } });
+
+/**
+ * URL to show the printer's MJPEG camera from this page. Through the relay when
+ * available (required on HTTPS pages); otherwise the printer's own URL.
+ */
+export function cameraUrl(cfg: FlashforgeConfig, detail: PrinterDetail | null, relay: boolean): string | null {
+  const raw = detail?.cameraStreamUrl?.trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    const host = u.hostname || splitHost(cfg.host).host;
+    const port = Number(u.port || 8080);
+    if (relay && isPrivateIPv4(host)) return relayUrl(host, port, u.pathname) + u.search;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  ready: 'Ready', idle: 'Ready', heating: 'Heating', printing: 'Printing', pause: 'Paused', paused: 'Paused',
+  pausing: 'Pausing', completed: 'Completed', cancel: 'Cancelled', cancelled: 'Cancelled', canceling: 'Cancelling',
+  error: 'Error', busy: 'Busy', calibrate_doing: 'Calibrating',
+};
+export function statusLabel(status?: string): string {
+  if (!status) return 'Unknown';
+  return STATUS_LABEL[status.toLowerCase()] ?? status;
+}
+export function isPrintingStatus(status?: string): boolean {
+  const s = (status ?? '').toLowerCase();
+  return s === 'printing' || s === 'heating' || s === 'pause' || s === 'paused' || s === 'pausing' || s === 'busy';
 }

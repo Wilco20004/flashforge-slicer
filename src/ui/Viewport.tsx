@@ -10,7 +10,7 @@ export interface ViewportProps {
   objects: PlateObject[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  mode: 'prepare' | 'preview';
+  mode: 'prepare' | 'preview' | 'monitor';
   preview: PreviewData | null;
   visibleLayers: number; // number of layers shown in preview mode
   showTravel: boolean;
