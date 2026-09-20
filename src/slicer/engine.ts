@@ -5,7 +5,7 @@ import {
   offset, union, unionAll, difference, intersection, islands, convexHull, isEmpty, polyArea, open,
   toMm, type Polys, type Poly,
 } from './polygons';
-import { parallelLines, sparseInfill } from './infill';
+import { parallelLines, sparseInfill, connectLines } from './infill';
 import { computeBounds } from '../geometry/mesh';
 import { generateTreeSupport } from './treeSupport';
 
@@ -155,7 +155,7 @@ export function planLayers(positions: Float32Array, s: SliceSettings, progress?:
           curW = offset(curW, -w);
         }
         const inner = offset(curW, w / 2 + w * 0.25);
-        for (const l of parallelLines(inner, s.supportSpacing, 0)) addOpen(paths, 'support', l, w);
+        for (const l of connectLines(parallelLines(inner, s.supportSpacing, 0), inner, s.supportSpacing * 1.5)) addOpen(paths, 'support', l, w);
       } else {
         if (s.supportWalls > 0) {
           let curW = offset(base, -w / 2);
@@ -165,11 +165,11 @@ export function planLayers(positions: Float32Array, s: SliceSettings, progress?:
           }
         }
         const baseInner = s.supportWalls > 0 ? offset(base, -(s.supportWalls * w) + w * 0.25) : base;
-        for (const l of parallelLines(baseInner, s.supportSpacing, 0)) addOpen(paths, 'support', l, w);
+        for (const l of connectLines(parallelLines(baseInner, s.supportSpacing, 0), baseInner, s.supportSpacing * 1.5)) addOpen(paths, 'support', l, w);
       }
       // Roof / interface: dense lines, alternating direction so the roof is a solid sheet
       const ifaceAngle = treeStyle ? 90 * (i % 2) : 90;
-      for (const l of parallelLines(iface, s.supportInterfaceSpacing, ifaceAngle)) addOpen(paths, 'support-interface', l, w);
+      for (const l of connectLines(parallelLines(iface, s.supportInterfaceSpacing, ifaceAngle), iface, s.supportInterfaceSpacing * 3)) addOpen(paths, 'support-interface', l, w);
     }
 
     // Islands, nearest-first
@@ -231,14 +231,18 @@ export function planLayers(positions: Float32Array, s: SliceSettings, progress?:
       const internalSolid = difference(rest1, bottomPart);
 
       const infillPaths: PrintPath[] = [];
-      for (const l of parallelLines(internalSolid, w, solidAngle)) infillPaths.push(makeOpen('solid-infill', l, w));
-      for (const l of parallelLines(bottomPart, w, solidAngle)) infillPaths.push(makeOpen(first ? 'bottom-surface' : 'bridge', l, w));
-      for (const l of parallelLines(topPart, w, solidAngle)) infillPaths.push(makeOpen('top-surface', l, w));
+      // Solid areas are laid down as continuous zigzags: without this every line
+      // is a separate path, and the travel + retraction between them costs far
+      // more than the printing does.
+      const solidRuns = (area: Polys) => connectLines(parallelLines(area, w, solidAngle), area, w * 3);
+      for (const l of solidRuns(internalSolid)) infillPaths.push(makeOpen('solid-infill', l, w));
+      for (const l of solidRuns(bottomPart)) infillPaths.push(makeOpen(first ? 'bottom-surface' : 'bridge', l, w));
+      for (const l of solidRuns(topPart)) infillPaths.push(makeOpen('top-surface', l, w));
       const sp = sparseInfill(sparseArea, s.infillPattern, w, s.infillDensity / 100, s.infillAngle, i);
       for (const l of sp.open) infillPaths.push(makeOpen('sparse-infill', l, w));
       for (const p of sp.closed) infillPaths.push(makeClosed('sparse-infill', p, w));
 
-      const ordered = [...wallPaths, ...infillPaths];
+      const ordered = [...wallPaths, ...orderByProximity(infillPaths, endPoint(wallPaths[wallPaths.length - 1] ?? { type: 'travel', pts: [cur.x, cur.y], closed: false, width: w }))];
       for (const p of ordered) {
         orientPath(p, cur, s.seamPosition, rand);
         paths.push(p);
@@ -268,6 +272,38 @@ function addClosed(paths: PrintPath[], type: PathType, p: Poly, width: number) {
 }
 function addOpen(paths: PrintPath[], type: PathType, p: Poly, width: number) {
   if (p.length >= 2) paths.push(makeOpen(type, p, width));
+}
+
+/**
+ * Greedy nearest-endpoint order for one island's infill paths. Scan order alone
+ * sends the head back and forth across the plate whenever a layer has several
+ * disjoint areas (the cells of a gridfinity base, say).
+ */
+const MAX_ORDERED_PATHS = 4000;
+function orderByProximity(paths: PrintPath[], from: { x: number; y: number }): PrintPath[] {
+  if (paths.length < 2 || paths.length > MAX_ORDERED_PATHS) return paths;
+  const left = paths.slice();
+  const out: PrintPath[] = [];
+  let cx = from.x, cy = from.y;
+  while (left.length) {
+    let best = 0, bestD = Infinity, bestFlip = false;
+    for (let i = 0; i < left.length; i++) {
+      const p = left[i], n = p.pts.length;
+      const d0 = (p.pts[0] - cx) ** 2 + (p.pts[1] - cy) ** 2;
+      const d1 = p.closed ? Infinity : (p.pts[n - 2] - cx) ** 2 + (p.pts[n - 1] - cy) ** 2;
+      if (d0 <= d1) { if (d0 < bestD) { bestD = d0; best = i; bestFlip = false; } }
+      else if (d1 < bestD) { bestD = d1; best = i; bestFlip = true; }
+    }
+    const p = left.splice(best, 1)[0];
+    out.push(p);
+    const n = p.pts.length;
+    // orientPath reverses an open path to start at its nearer end, so the exit
+    // point is the far end of whichever end we approached.
+    if (p.closed) { cx = p.pts[0]; cy = p.pts[1]; }
+    else if (bestFlip) { cx = p.pts[0]; cy = p.pts[1]; }
+    else { cx = p.pts[n - 2]; cy = p.pts[n - 1]; }
+  }
+  return out;
 }
 
 function endPoint(p: PrintPath): { x: number; y: number } {

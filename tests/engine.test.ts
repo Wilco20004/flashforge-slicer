@@ -3,6 +3,8 @@ import { planLayers } from '../src/slicer/engine';
 import { generateGcode, pathTime, substitute } from '../src/slicer/gcode';
 import { DEFAULT_SETTINGS, type SliceSettings } from '../src/slicer/settings';
 import { boxMesh, tubeMesh } from './fixtures';
+import { parallelLines, connectLines, dropShortLines } from '../src/slicer/infill';
+import { pt } from '../src/slicer/polygons';
 import { MACHINES, FILAMENTS, PROCESSES, buildSettings } from '../src/profiles';
 
 const settings = (o: Partial<SliceSettings> = {}): SliceSettings =>
@@ -234,5 +236,71 @@ describe('helpers', () => {
   });
   it('default settings are complete', () => {
     expect(Object.keys(DEFAULT_SETTINGS).length).toBeGreaterThan(80);
+  });
+});
+
+describe('infill connection', () => {
+  const rect = (x0: number, y0: number, x1: number, y1: number) => [pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)];
+
+  it('joins scan lines into zigzag runs inside a region', () => {
+    const region = [rect(0, 0, 20, 20)];
+    const lines = parallelLines(region, 1, 0);
+    const runs = connectLines(lines, region, 3);
+    expect(lines.length).toBeGreaterThan(15);
+    expect(runs.length).toBe(1); // one continuous zigzag
+    const pts = runs[0].length;
+    expect(pts).toBe(lines.reduce((a, l) => a + l.length, 0));
+  });
+
+  it('does not connect across a hole or outside the region', () => {
+    // Two separate squares: lines of one must never link to the other.
+    const region = [rect(0, 0, 10, 20), rect(30, 0, 40, 20)];
+    const runs = connectLines(parallelLines(region, 1, 0), region, 100);
+    expect(runs.length).toBeGreaterThan(1);
+    for (const r of runs) {
+      const xs = r.map((p) => p.X / 1000);
+      // no run may span the empty gap between the squares
+      expect(Math.max(...xs) - Math.min(...xs)).toBeLessThan(25);
+    }
+  });
+
+  it('drops stubs that cost more to reach than they lay down', () => {
+    const keep = [pt(0, 0), pt(10, 0)];
+    const stub = [pt(0, 5), pt(0.2, 5)];
+    expect(dropShortLines([keep, stub], 1)).toEqual([keep]);
+  });
+
+  it('never extrudes across the hole of a tube', () => {
+    // Connecting infill lines must not bridge a void: sample every extrusion
+    // segment of a square tube and check none passes through its 10mm hole.
+    const tube = tubeMesh(30, 12, 3);
+    const { layers } = planLayers(tube.positions, settings());
+    const half = 12 / 2 - 0.6; // inside the hole, clear of the wall
+    let inHole = 0;
+    for (const l of layers.slice(1)) for (const p of l.paths) {
+      const pts = p.closed ? [...p.pts, p.pts[0], p.pts[1]] : p.pts;
+      for (let i = 2; i < pts.length; i += 2) {
+        for (const t of [0.25, 0.5, 0.75]) {
+          const x = pts[i - 2] + (pts[i] - pts[i - 2]) * t;
+          const y = pts[i - 1] + (pts[i + 1] - pts[i - 1]) * t;
+          if (Math.abs(x) < half && Math.abs(y) < half) inHole++;
+        }
+      }
+    }
+    expect(inHole).toBe(0);
+  });
+
+  it('keeps travel small compared with extrusion for a solid plate', () => {
+    const plate = boxMesh(40, 40, 1.2);
+    const { layers } = planLayers(plate.positions, settings());
+    let ext = 0, travel = 0, px = NaN, py = NaN;
+    for (const l of layers) for (const p of l.paths) {
+      const pts = p.closed ? [...p.pts, p.pts[0], p.pts[1]] : p.pts;
+      if (!isNaN(px)) travel += Math.hypot(pts[0] - px, pts[1] - py);
+      for (let i = 2; i < pts.length; i += 2) ext += Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]);
+      px = pts[pts.length - 2]; py = pts[pts.length - 1];
+    }
+    // Before infill lines were connected this ratio was above 1.
+    expect(travel / ext).toBeLessThan(0.25);
   });
 });

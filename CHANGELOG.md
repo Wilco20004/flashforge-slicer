@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0
+
+- **Prints are no longer dominated by travel.** Infill was emitted one clipped
+  line at a time, so the head stopped, lifted, retracted, travelled and restarted
+  between every line. A 1x4 gridfinity base came out with 2.1 km of travel and
+  56,397 retractions against 256 m of actual extrusion, which is where the
+  four-hour estimate came from. Infill lines are now joined into continuous
+  zigzags wherever the connector stays inside the region, and the remaining
+  paths are ordered by proximity instead of scan order. On an equivalent test
+  part travel fell from 489 m to 65 m, retractions from 13,549 to 1,044, and the
+  print time from 1h 23m to 45m, with the same amount of plastic.
+- Supports and their interfaces are joined the same way.
+- Infill stubs shorter than one line width are dropped: reaching them cost more
+  than they deposited.
+- The time estimate was checked against OrcaSlicer by re-timing Orca's own
+  G-code with it: 1h 8m 45s against Orca's stated 1h 7m 48s, a 1.4% difference.
+
 ## 0.3.6
 
 - **Fixed "Slicing worker crashed" after an add-on update.** Updating the add-on
