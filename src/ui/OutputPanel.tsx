@@ -3,6 +3,7 @@ import type { SliceOutput } from '../slicer/client';
 import { formatDuration } from '../slicer/gcode';
 import { uploadGcode, getDetail, type FlashforgeConfig } from '../printer/flashforge';
 import { uploadToMoonraker } from '../printer/moonraker';
+import { relayAvailable, pageIsHttps } from '../printer/relay';
 
 export interface PrinterConfig {
   kind: 'flashforge' | 'moonraker';
@@ -29,7 +30,9 @@ export interface OutputPanelProps {
 export function OutputPanel(p: OutputPanelProps) {
   const [status, setStatus] = useState<{ kind: 'info' | 'ok' | 'err'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [relay, setRelay] = useState<boolean | null>(null);
   useEffect(() => { setStatus(null); }, [p.result]);
+  useEffect(() => { relayAvailable().then(setRelay); }, []);
   const r = p.result;
 
   const download = () => {
@@ -48,12 +51,12 @@ export function OutputPanel(p: OutputPanelProps) {
     try {
       if (p.printer.kind === 'flashforge') {
         await uploadGcode(p.printer.ff, r.gcode, {
-          fileName: p.fileName, printNow, levelingBeforePrint: p.printer.leveling,
+          fileName: p.fileName, printNow, levelingBeforePrint: p.printer.leveling, relay: Boolean(relay),
           onProgress: (f) => setStatus({ kind: 'info', text: `Uploading… ${(f * 100).toFixed(0)}%` }),
         });
       } else {
         await uploadToMoonraker({ url: p.printer.moonraker.url, apiKey: p.printer.moonraker.apiKey || undefined }, r.gcode, p.fileName, printNow,
-          (f) => setStatus({ kind: 'info', text: `Uploading… ${(f * 100).toFixed(0)}%` }));
+          Boolean(relay), (f) => setStatus({ kind: 'info', text: `Uploading… ${(f * 100).toFixed(0)}%` }));
       }
       setStatus({ kind: 'ok', text: printNow ? 'Uploaded and print started.' : 'Uploaded to the printer.' });
     } catch (e) {
@@ -65,7 +68,7 @@ export function OutputPanel(p: OutputPanelProps) {
     setBusy(true);
     setStatus({ kind: 'info', text: 'Connecting…' });
     try {
-      const d = await getDetail(p.printer.ff) as { detail?: { status?: string; name?: string; firmwareVersion?: string } };
+      const d = await getDetail(p.printer.ff, Boolean(relay)) as { detail?: { status?: string; name?: string; firmwareVersion?: string } };
       const det = d.detail ?? {};
       setStatus({ kind: 'ok', text: `Connected: ${det.name ?? 'printer'} ${det.firmwareVersion ?? ''} (${det.status ?? 'ok'})` });
     } catch (e) {
@@ -104,7 +107,8 @@ export function OutputPanel(p: OutputPanelProps) {
             <label className="field"><span>Serial number</span><input value={p.printer.ff.serialNumber} placeholder="SNADVA5M…" onChange={(e) => setFF('serialNumber', e.target.value)} /></label>
             <label className="field"><span>Check code</span><input value={p.printer.ff.checkCode} placeholder="Printer ID" onChange={(e) => setFF('checkCode', e.target.value)} /></label>
             <label className="field"><span>Level before print</span><span className="control"><input type="checkbox" checked={p.printer.leveling} onChange={(e) => p.onPrinter({ ...p.printer, leveling: e.target.checked })} /></span></label>
-            <p className="hint">Uses the printer's LAN API (port 8898, firmware 2.6.6+). Serial number and check code are under Settings → Network on the printer. Some firmware versions block browser requests (CORS); if so, download the file and print via USB or Orca-Flashforge.</p>
+            <p className="hint">Uses the printer's LAN API (port 8898, firmware 2.6.6+). Serial number and check code are under Settings → Network on the printer.</p>
+            <RelayNote relay={relay} />
             <div className="row gap">
               <button className="btn small ghost" disabled={busy || !p.printer.ff.host} onClick={test}>Test</button>
               <button className="btn small" disabled={busy || !r || !p.printer.ff.host} onClick={() => send(false)}>Upload</button>
@@ -115,7 +119,8 @@ export function OutputPanel(p: OutputPanelProps) {
           <>
             <label className="field"><span>Moonraker URL</span><input value={p.printer.moonraker.url} placeholder="http://ad5m.local:7125" onChange={(e) => p.onPrinter({ ...p.printer, moonraker: { ...p.printer.moonraker, url: e.target.value } })} /></label>
             <label className="field"><span>API key</span><input value={p.printer.moonraker.apiKey} placeholder="optional" onChange={(e) => p.onPrinter({ ...p.printer, moonraker: { ...p.printer.moonraker, apiKey: e.target.value } })} /></label>
-            <p className="hint">For a 5M running the community Klipper mod. Add this page's origin to <code>cors_domains</code> in moonraker.conf.</p>
+            <p className="hint">For a 5M running the community Klipper mod.{relay ? ' Requests are relayed by this server.' : <> Add this page's origin to <code>cors_domains</code> in moonraker.conf.</>}</p>
+            <RelayNote relay={relay} />
             <div className="row gap">
               <button className="btn small" disabled={busy || !r || !p.printer.moonraker.url} onClick={() => send(false)}>Upload</button>
               <button className="btn small primary" disabled={busy || !r || !p.printer.moonraker.url} onClick={() => send(true)}>Upload & print</button>
@@ -126,4 +131,18 @@ export function OutputPanel(p: OutputPanelProps) {
       </details>
     </section>
   );
+}
+
+function RelayNote({ relay }: { relay: boolean | null }) {
+  if (relay === null) return null;
+  if (relay) return <p className="status ok">Printer relay active: uploads go through this server, so no printer-side CORS setup is needed.</p>;
+  if (pageIsHttps()) {
+    return (
+      <p className="status err">
+        This page is served over HTTPS, so the browser will not let it talk to a printer on your LAN. Sending works from the
+        Docker or Home Assistant version of this app, which relays to the printer. Here, download the G-code instead.
+      </p>
+    );
+  }
+  return <p className="warn">No relay on this server: the browser talks to the printer directly, which only works if the printer firmware allows cross-origin requests.</p>;
 }

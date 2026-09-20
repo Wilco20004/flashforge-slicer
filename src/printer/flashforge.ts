@@ -3,13 +3,14 @@
  * Same protocol OrcaSlicer's "Flashforge" print host uses. The printer's
  * serial number and check code are shown under Settings > Network on the printer.
  *
- * Browser note: the printer must answer CORS preflight requests for this to work
- * from a web page. If it doesn't, the upload fails in the browser even though
- * the printer is reachable; download the G-code instead and use USB / Orca.
+ * Requests go through the same-origin relay when the hosting server provides one
+ * (Docker / Home Assistant add-on); otherwise straight to the printer, which only
+ * works from an http:// page and if the firmware answers CORS preflights.
  */
+import { explainNetworkFailure, relayUrl } from './relay';
 
 export interface FlashforgeConfig {
-  host: string; // IP or hostname
+  host: string; // IP or hostname, optional :port
   serialNumber: string;
   checkCode: string;
 }
@@ -18,10 +19,13 @@ export interface UploadOptions {
   fileName: string;
   printNow: boolean;
   levelingBeforePrint: boolean;
+  relay: boolean;
   onProgress?: (fraction: number) => void;
 }
 
 export interface ApiResponse { code: number; message: string; [k: string]: unknown }
+
+export const FLASHFORGE_PORT = 8898;
 
 export function sanitizeFilename(name: string): string {
   let base = name.split(/[\\/]/).pop() || 'print.gcode';
@@ -30,17 +34,28 @@ export function sanitizeFilename(name: string): string {
   return base;
 }
 
-export function apiUrl(cfg: FlashforgeConfig, path: string): string {
-  const host = cfg.host.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  return `http://${host}${host.includes(':') ? '' : ':8898'}/${path}`;
+export function splitHost(input: string): { host: string; port: number } {
+  const s = input.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const m = /^(.*):(\d+)$/.exec(s);
+  return m ? { host: m[1], port: Number(m[2]) } : { host: s, port: FLASHFORGE_PORT };
 }
 
-export async function getDetail(cfg: FlashforgeConfig): Promise<ApiResponse> {
-  const res = await fetch(apiUrl(cfg, 'detail'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ serialNumber: cfg.serialNumber, checkCode: cfg.checkCode }),
-  });
+export function apiUrl(cfg: FlashforgeConfig, path: string, relay: boolean): string {
+  const { host, port } = splitHost(cfg.host);
+  return relay ? relayUrl(host, port, path) : `http://${host}:${port}/${path}`;
+}
+
+export async function getDetail(cfg: FlashforgeConfig, relay: boolean): Promise<ApiResponse> {
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(cfg, 'detail', relay), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serialNumber: cfg.serialNumber, checkCode: cfg.checkCode }),
+    });
+  } catch {
+    throw new Error(explainNetworkFailure(relay));
+  }
   return parseResponse(res);
 }
 
@@ -51,7 +66,7 @@ export function uploadGcode(cfg: FlashforgeConfig, gcode: string | Blob, opts: U
   form.append('gcodeFile', blob, fileName);
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', apiUrl(cfg, 'uploadGcode'));
+    xhr.open('POST', apiUrl(cfg, 'uploadGcode', opts.relay));
     xhr.setRequestHeader('serialNumber', cfg.serialNumber);
     xhr.setRequestHeader('checkCode', cfg.checkCode);
     xhr.setRequestHeader('fileSize', String(blob.size));
@@ -71,31 +86,37 @@ export function uploadGcode(cfg: FlashforgeConfig, gcode: string | Blob, opts: U
         else reject(new Error(`Printer rejected upload (HTTP ${xhr.status}): ${body.message ?? xhr.responseText}`));
       } catch {
         if (xhr.status >= 200 && xhr.status < 300) resolve({ code: 0, message: xhr.responseText });
-        else reject(new Error(`Printer rejected upload (HTTP ${xhr.status})`));
+        else reject(new Error(`Printer rejected upload (HTTP ${xhr.status}): ${xhr.responseText.slice(0, 200)}`));
       }
     };
-    xhr.onerror = () => reject(new Error(
-      'Could not reach the printer from the browser. Check the IP address, that LAN mode is enabled, and that the printer firmware allows cross-origin (CORS) requests. Otherwise download the G-code and copy it via USB.',
-    ));
+    xhr.onerror = () => reject(new Error(explainNetworkFailure(opts.relay)));
     xhr.send(form);
   });
 }
 
-export async function printGcode(cfg: FlashforgeConfig, fileName: string, levelingBeforePrint: boolean): Promise<ApiResponse> {
-  const res = await fetch(apiUrl(cfg, 'printGcode'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ serialNumber: cfg.serialNumber, checkCode: cfg.checkCode, fileName: sanitizeFilename(fileName), levelingBeforePrint }),
-  });
+export async function printGcode(cfg: FlashforgeConfig, fileName: string, levelingBeforePrint: boolean, relay: boolean): Promise<ApiResponse> {
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(cfg, 'printGcode', relay), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serialNumber: cfg.serialNumber, checkCode: cfg.checkCode, fileName: sanitizeFilename(fileName), levelingBeforePrint }),
+    });
+  } catch {
+    throw new Error(explainNetworkFailure(relay));
+  }
   return parseResponse(res);
 }
 
 async function parseResponse(res: Response): Promise<ApiResponse> {
   const text = await res.text();
   let body: ApiResponse;
-  try { body = JSON.parse(text); } catch { body = { code: res.ok ? 0 : res.status, message: text }; }
+  try { body = JSON.parse(text); } catch { body = { code: res.ok ? 0 : res.status, message: text.slice(0, 200) }; }
+  if (res.status === 502 || res.status === 504) {
+    throw new Error('The relay could not reach the printer (no answer on port 8898). Check the IP address and that LAN mode is enabled on the printer.');
+  }
   if (!res.ok || (typeof body.code === 'number' && body.code !== 0)) {
-    throw new Error(`Printer API error ${body.code ?? res.status}: ${body.message ?? text}`);
+    throw new Error(`Printer API error ${body.code ?? res.status}: ${body.message ?? text.slice(0, 200)}`);
   }
   return body;
 }

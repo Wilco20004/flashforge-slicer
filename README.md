@@ -27,9 +27,10 @@ Run it as a static site, as a Docker container, or as a Home Assistant add-on.
   - print-time estimate from a trapezoidal motion planner with junction slow-down; filament length / weight
 - **Preview**: 3D toolpath view coloured by feature type, layer slider (arrow keys work too), travel moves toggle.
 - **Profiles**: Adventurer 5M and 5M Pro with 0.25 / 0.4 / 0.6 / 0.8 mm nozzles; PLA, HS PLA, Silk PLA, PETG, ABS, ASA, TPU; quality presets from 0.08 mm to 0.56 mm. Any setting can be overridden; overrides are highlighted and persist in the browser.
-- **Send to printer** (optional):
-  - *Flashforge LAN API* (port 8898, firmware 2.6.6+): upload, or upload and start printing, with optional bed levelling — the same API Orca-Flashforge uses. The browser can only reach it if the printer answers CORS preflight requests; if it does not, download the file and print via USB or Orca-Flashforge.
-  - *Moonraker* for a 5M running the community Klipper mod (add the page's origin to `cors_domains`).
+- **Send to printer** (Docker / Home Assistant versions):
+  - *Flashforge LAN API* (port 8898, firmware 2.6.6+): upload, or upload and start printing, with optional bed levelling — the same API Orca-Flashforge uses.
+  - *Moonraker* for a 5M running the community Klipper mod.
+  - The nginx that serves the app relays these requests (`/printer/<ip>/…` → `http://<ip>:8898/…`, private LAN addresses only), so the browser never talks to the printer directly. A page served from plain static hosting such as GitHub Pages cannot send to the printer: browsers block an HTTPS page from calling a plain-HTTP LAN device, and the printer does not answer CORS preflights. The app detects this and says so; download the G-code there instead.
 
 ## Running it
 

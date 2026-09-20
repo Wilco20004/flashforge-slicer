@@ -20,12 +20,12 @@ Settings, presets and any overrides you make are remembered per browser.
 
 - **Flashforge LAN API** (firmware 2.6.6 or newer): enter the printer's IP, its
   serial number and the check code shown under *Settings → Network* on the
-  printer, then use **Upload** or **Upload & print**. Your browser talks to the
-  printer directly, so both must be on the same network. Some firmware versions
-  block browser requests (CORS); if uploads fail while the printer is reachable,
-  download the file instead.
-- **Moonraker**: for a 5M running the community Klipper mod. Add this add-on's
-  URL to `cors_domains` in `moonraker.conf`.
+  printer, then use **Test**, **Upload** or **Upload & print**. The add-on relays
+  the request to the printer, so the Home Assistant host must be able to reach
+  the printer's IP on port 8898 (LAN mode enabled on the printer). Only private
+  LAN addresses are accepted by the relay.
+- **Moonraker**: for a 5M running the community Klipper mod. Enter its IP and
+  port (default 7125); the add-on relays the upload the same way.
 
 ## Notes
 
