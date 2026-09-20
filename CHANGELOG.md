@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.1
+
+- **The camera on the Monitor tab was a thumbnail.** On a phone the camera shared
+  the stage with the status panel, which took most of it and squeezed the camera
+  into the 160 px its row could shrink to; a 4:3 stream then fitted itself into
+  that strip and came out 255 px wide with black bars either side. It now takes
+  the full width and whatever height its aspect ratio needs, with the status
+  scrolling underneath: 412 px of a 412 px screen instead of 255. On the desktop
+  layout the monitor now uses the whole window while a print is being watched —
+  the settings and objects panels have nothing to say meanwhile, and their 660 px
+  took the camera from 460 px to 1120 px on a 1440 px screen.
+
 ## 0.7.0
 
 - **Filament spools.** A filament preset describes a kind of plastic; a spool is

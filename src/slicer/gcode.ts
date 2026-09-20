@@ -2,7 +2,7 @@ import type { SliceSettings } from './settings';
 import { PATH_TYPES, PATH_TYPE_LABEL, type LayerPlan, type PathType, type PrintPath } from './plan';
 
 export const SLICER_NAME = 'Flashforge Slicer';
-export const SLICER_VERSION = '0.7.0';
+export const SLICER_VERSION = '0.7.1';
 
 export interface GcodeStats {
   printTimeSec: number;

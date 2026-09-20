@@ -350,7 +350,7 @@ export function App() {
   const layerZ = result && visibleLayers > 0 ? result.layerZs[Math.min(visibleLayers, result.layerZs.length) - 1] : 0;
 
   return (
-    <div className="app">
+    <div className={mode === 'monitor' ? 'app monitoring' : 'app'}>
       <header className="topbar">
         <div className="brand">
           <span className="logo">🖨️</span>
