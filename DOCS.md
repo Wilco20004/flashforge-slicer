@@ -39,6 +39,64 @@ not report a camera, use **Try the printer's camera port**, or enter any MJPEG
 stream URL (for example from a separate webcam server). "Upload & print"
 opens Monitor automatically.
 
+## Filament spools and labels
+
+A filament preset ("Generic PETG") describes a kind of plastic. A **spool** is
+the roll on your shelf. Add spools under the **Filament** tab with their brand,
+colour, material and their own nozzle and bed temperatures.
+
+Selecting a spool — from that tab, or the **Spool** row in the settings panel —
+overrides the preset's two temperatures for the slice. Everything else about the
+material (flow ratio, fan, pressure advance, volumetric limit) stays with the
+preset, because that is where that knowledge belongs. The first-layer
+temperatures keep the preset's own offset, so PLA still runs its bed 5 °C hotter
+for layer one.
+
+The spool records how much filament is left. A print sent to the printer while
+that spool is in use is booked against it automatically; for a print carried
+over on a USB stick there is a button to book the last slice by hand.
+
+### Printing a label
+
+If you run the [LabelForge](https://github.com/wilco20004/LabelForge) add-on with
+a Brother QL printer, the Filament tab can print a label for a spool. Enter
+LabelForge's LAN IP address and port (8095 by default) and load its templates.
+
+Design the template in LabelForge, not here. Use these variables in its text
+fields — anything else prints blank, and the slicer warns you before it does:
+
+`name`, `brand`, `material`, `color`, `color_hex`, `nozzle_temp`, `bed_temp`,
+`temps`, `weight`, `used`, `remaining`, `remaining_pct`, `id`, `purchased`,
+`notes`, `link`.
+
+Give the template's **image an override variable** (any name). The slicer fills
+it with a QR code and a colour patch drawn to that block's exact pixel size.
+
+Two things are worth knowing when laying the template out:
+
+- **Give the image block room.** The QR is drawn at a whole number of pixels per
+  module. Below 3 px a module it becomes unreliable, and the slicer says so
+  before you print. An image block about 260 x 100 px is comfortable for a link
+  like `http://192.168.1.4:8099/#spool=K7M2QX`; a shorter QR prefix needs less.
+- **A text field that wraps runs past its own height.** LabelForge wraps text to
+  the field's width and keeps going downwards, so a long value will overwrite
+  whatever you placed below it. Leave room for two lines where a value might
+  need them.
+
+The colour patch is a dither, not a block of colour, and that is deliberate: a
+mono QL printer keeps whatever is darker than about 70 % brightness and throws
+the rest away, so a flat colour would print as a solid black block or as nothing
+at all, and a navy spool would look exactly like a black one. The dither prints
+as a tone whose darkness matches the filament. The hue itself is carried by the
+`color` and `color_hex` text.
+
+### Scanning a label
+
+Set **QR prefix** to this page's own address ending in `#spool=` — for example
+`http://192.168.1.4:8099/#spool=` — and the QR on each label becomes a link.
+Scanning it with a phone opens the slicer with that spool already selected.
+Leave the prefix blank and the QR just holds the spool id.
+
 ## Notes
 
 - The add-on has no options; its only state is the shared settings file in `/data`.

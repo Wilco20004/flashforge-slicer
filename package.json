@@ -1,7 +1,7 @@
 {
   "name": "flashforge-slicer",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "license": "MIT",
   "repository": "github:wilco20004/flashforge-slicer",
   "type": "module",
@@ -15,6 +15,7 @@
   "dependencies": {
     "clipper-lib": "^6.4.2",
     "fflate": "^0.8.2",
+    "qrcode-generator": "^2.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.170.0"

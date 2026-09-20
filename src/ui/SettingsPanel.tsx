@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SliceSettings } from '../slicer/settings';
 import { SETTINGS_TABS, type Field } from './settingsSchema';
 import { MACHINES, FILAMENTS, processesForNozzle, type MachineProfile, type FilamentProfile, type ProcessProfile } from '../profiles';
+import { spoolName, remainingG, type Spool } from '../profiles/spools';
 
 export interface SettingsPanelProps {
   machine: MachineProfile;
@@ -13,6 +14,10 @@ export interface SettingsPanelProps {
   overrides: Partial<SliceSettings>;
   onMachine: (id: string) => void;
   onFilament: (id: string) => void;
+  /** Physical spools; picking one overrides the preset's temperatures. */
+  spools: Spool[];
+  spoolId: string | null;
+  onSpool: (id: string | null) => void;
   onProcess: (id: string) => void;
   onOverride: (key: keyof SliceSettings, value: unknown) => void;
   onResetOverride: (key: keyof SliceSettings) => void;
@@ -42,6 +47,19 @@ export function SettingsPanel(p: SettingsPanelProps) {
             {FILAMENTS.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.type})</option>)}
           </select>
         </label>
+        {p.spools.length > 0 && (
+          <label className="field">
+            <span>Spool</span>
+            <select value={p.spoolId ?? ''} onChange={(e) => p.onSpool(e.target.value || null)}>
+              <option value="">No spool — preset temperatures</option>
+              {p.spools.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {spoolName(s)}{s.netWeightG > 0 ? ` · ${Math.round(remainingG(s))} g` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="field">
           <span>Process</span>
           <select value={p.process.id} onChange={(e) => p.onProcess(e.target.value)}>

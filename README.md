@@ -29,6 +29,8 @@ Run it as a static site, as a Docker container, or as a Home Assistant add-on.
   - print-time estimate from a trapezoidal motion planner with junction slow-down; filament length / weight
 - **Preview**: 3D toolpath view coloured by feature type, layer slider (arrow keys work too), travel moves toggle.
 - **Profiles**: Adventurer 5M and 5M Pro with 0.25 / 0.4 / 0.6 / 0.8 mm nozzles; PLA, HS PLA, Silk PLA, PETG, ABS, ASA, TPU; quality presets from 0.08 mm to 0.56 mm. Any setting can be overridden; overrides are highlighted. Settings and the saved printer persist in the browser, and on the server when run as the Docker image / Home Assistant add-on so all your devices share them.
+- **Filament spools**: record the actual rolls on the shelf — brand, colour name and hex, material, their own nozzle and bed temperatures, and how much is left. Selecting a spool overrides the preset's temperatures for the slice and leaves flow, fan and pressure advance with the material preset; filament used is booked against the spool when a print is sent.
+- **Spool labels** via [LabelForge](https://github.com/wilco20004/LabelForge): the slicer draws the label's image itself — a QR code beside a dithered colour patch — and posts it with the text values to a LabelForge add-on on the LAN. Scanning a label opens the slicer with that spool selected.
 - **Monitor** (Docker / Home Assistant versions): live status of the saved printer — progress, layer, remaining time, temperatures, speed and fan — with pause / resume / cancel, LED light control and the printer's camera stream (Adventurer 5M Pro built-in camera, or a supported USB camera on the 5M), all relayed by the server.
 - **Send to printer** (Docker / Home Assistant versions):
   - *Flashforge LAN API* (port 8898, firmware 2.6.6+): upload, or upload and start printing, with optional bed levelling — the same API Orca-Flashforge uses.
@@ -83,10 +85,11 @@ model file ──▶ TriangleMesh ──▶ (transform, merge) ──▶ Web Wor
 
 - `src/geometry/` — STL / 3MF / OBJ parsers and mesh helpers
 - `src/slicer/` — the engine (`slice`, `polygons`, `walls`, `medial`, `gapFill`, `infill`, `treeSupport`, `engine`, `gcode`, `worker`)
-- `src/profiles/` — machine, filament and process presets (values taken from OrcaSlicer's Flashforge profiles)
+- `src/profiles/` — machine, filament and process presets (values taken from OrcaSlicer's Flashforge profiles), and physical spools (`spools`)
 - `src/printer/` — Flashforge LAN API and Moonraker upload clients
+- `src/label/` — spool labels: QR encoding (`qr`), the one-bit label image (`spoolArt`), the LabelForge client (`labelforge`) and the spool-to-template mapping (`spoolLabel`)
 - `src/ui/` — React UI; `src/preview/` — thumbnail rendering
-- `tests/` — Vitest suite (slicing geometry, shells, supports, adhesion, G-code structure, time estimate, arrange)
+- `tests/` — Vitest suite (slicing geometry, shells, supports, adhesion, G-code structure, time estimate, arrange, spools and labels)
 
 ## Limitations / roadmap
 
@@ -95,6 +98,7 @@ model file ──▶ TriangleMesh ──▶ (transform, merge) ──▶ Web Wor
 - No arc fitting and no variable layer height.
 - Single extruder / single filament per print (the 5M has one extruder anyway).
 - LAN upload from a browser depends on the printer firmware's CORS behaviour (see above).
+- Spool labels were checked against LabelForge's own renderer and brother_ql's conversion, including reading the QR back off the converted image, but not against a physical Brother QL printer.
 - The time estimate uses Klipper-like kinematics but not the printer's exact pressure-advance/smoothing behaviour; expect it to be within roughly 10 %.
 
 ## License

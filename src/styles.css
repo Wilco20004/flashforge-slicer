@@ -227,3 +227,40 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 4px; }
 .update-bar span { flex: 1 1 auto; min-width: 180px; }
 .btn.small { padding: 4px 10px; font-size: 12px; }
 .overlay.notice { top: 12px; left: 50%; transform: translateX(-50%); background: #2a3550; border: 1px solid #445d90; color: #cfe0ff; padding: 8px 14px; border-radius: 8px; cursor: pointer; max-width: 80%; font-size: 13px; }
+
+/* ---- Filament: spools, what is left on them, and their labels ------------ */
+.overlay.filament-overlay { inset: 0; background: var(--bg); display: block; overflow-y: auto; align-items: stretch; justify-content: stretch; }
+.filament-view { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); align-items: start; min-height: 100%; }
+.spool-list { padding: 14px; border-right: 1px solid var(--border); background: var(--panel); min-height: 100%; }
+.spool-list h3 { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 14px; margin: 0; }
+.spool-detail { padding: 14px; min-width: 0; }
+.spool-detail .group:first-child { margin-top: 0; }
+.spools { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 4px; }
+.spools li { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+.spools li:hover { background: var(--panel-2); }
+.spools li.selected { background: var(--panel-2); border-color: var(--accent-2); }
+.spools .spool-text { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.spools .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spools small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+/* A ring rather than a bare square, so a white or near-background filament is
+   still visible as a swatch. */
+.swatch { display: inline-block; width: 22px; height: 22px; border-radius: 5px; border: 1px solid var(--border); box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); flex: 0 0 auto; }
+.swatch.tiny { width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.bar.thin { height: 4px; }
+.field.inline { padding: 0; gap: 6px; }
+.field.inline > span:first-child { flex: 0 0 auto; }
+.field input[type=color] { width: 38px; height: 28px; padding: 2px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; }
+.field input.hex { width: 90px; font: 12px ui-monospace, Menlo, monospace; }
+.field.column input { width: auto; }
+.label-preview { margin-top: 10px; }
+/* Checkerboard: the label is mostly white, which would otherwise be invisible
+   against the panel. */
+.label-preview img {
+  max-width: 100%; border: 1px solid var(--border); border-radius: 6px; display: block;
+  background: repeating-conic-gradient(#2a3140 0% 25%, #222833 0% 50%) 50% / 12px 12px;
+}
+.btn.danger-text { color: var(--danger); }
+@media (max-width: 900px) {
+  .filament-view { grid-template-columns: 1fr; }
+  .spool-list { border-right: 0; border-bottom: 1px solid var(--border); min-height: 0; }
+}

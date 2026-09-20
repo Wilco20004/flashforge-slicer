@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.7.0
+
+- **Filament spools.** A filament preset describes a kind of plastic; a spool is
+  the roll on the shelf. Spools are recorded under the new Filament tab with
+  their brand, colour name and hex, material, their own nozzle and bed
+  temperatures, and how much is left. Selecting one overrides the preset's
+  temperatures for the slice and leaves the rest of the material's knowledge —
+  flow, fan, pressure advance, volumetric limit — with the preset. The
+  first-layer temperatures follow the preset's own offset rather than being
+  flattened, so PLA still runs its bed 5 °C hotter for layer one.
+- **Filament used is tracked.** A print sent to the printer while a spool is in
+  use is booked against it automatically, and there is a button for prints taken
+  away on a USB stick. The spool list and the settings panel show what is left.
+- **Spool labels, printed through LabelForge.** The slicer builds the label's
+  one image itself — a QR code beside a colour patch — and posts it with the
+  text variables to a LabelForge add-on on the LAN, through the same relay the
+  printer uses. Three things about that pipeline drive how the image is built:
+  - LabelForge resizes the supplied image to the template block's exact pixel
+    size, so it is generated at exactly that size; anything else is bicubically
+    resampled and the QR stops scanning. Verified both ways against LabelForge's
+    own renderer.
+  - brother_ql reduces the label to one bit per pixel, keeping whatever started
+    darker than luminance 179. A flat colour is therefore all ink or none, and a
+    navy and a black spool would print identically. The patch is an ordered
+    dither instead, already one bit, so it passes through as a real tone.
+  - A QR module has to be a whole number of pixels. Pushing the art through
+    LabelForge's renderer and brother_ql's conversion and reading it back showed
+    3 px per module always decoded, 2 px sometimes, 1 px never — so the size is
+    floored to whole pixels and anything under 3 px is flagged before printing.
+  Set the QR prefix to the slicer's own address ending in `#spool=` and scanning
+  a spool's label opens the slicer with that spool selected.
+
 ## 0.6.0
 
 - **Variable width walls.** Wall loops were always exactly one line width, so

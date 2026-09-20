@@ -16,6 +16,9 @@ import { SlicerClient, type SliceOutput } from '../slicer/client';
 import { updateAvailable, reloadForUpdate, alreadyReloadedForThisBuild } from './buildInfo';
 import type { SliceSettings } from '../slicer/settings';
 import { MACHINES, FILAMENTS, PROCESSES, DEFAULT_MACHINE_ID, DEFAULT_FILAMENT_ID, buildSettings, defaultProcessForNozzle } from '../profiles';
+import { normalizeSpool, spoolName, spoolSettings, withUsage, type Spool } from '../profiles/spools';
+import { FilamentView } from './FilamentView';
+import { defaultLabelForgeConfig, type LabelForgeConfig } from '../label/labelforge';
 import { renderThumbnail } from '../preview/thumbnail';
 import { PATH_TYPES, PATH_TYPE_COLOR, PATH_TYPE_LABEL } from '../slicer/plan';
 import { formatDuration } from '../slicer/gcode';
@@ -27,21 +30,43 @@ interface Persisted extends Stamped {
   processId: string;
   overrides: Partial<SliceSettings>;
   printer: PrinterConfig;
+  spools: Spool[];
+  /** The spool the slice follows, or null for the bare filament preset. */
+  spoolId: string | null;
+  labels: LabelForgeConfig;
 }
 
 const defaultPersisted = (): Persisted => ({
   updatedAt: 0,
   machineId: DEFAULT_MACHINE_ID, filamentId: DEFAULT_FILAMENT_ID,
   processId: defaultProcessForNozzle(0.4).id, overrides: {}, printer: defaultPrinterConfig(),
+  spools: [], spoolId: null, labels: defaultLabelForgeConfig(),
 });
 
 function normalize(p: Partial<Persisted> | null): Persisted {
   const d = defaultPersisted();
   if (!p) return d;
-  return { ...d, ...p, printer: { ...d.printer, ...(p.printer ?? {}) }, updatedAt: p.updatedAt ?? 1 };
+  const spools = Array.isArray(p.spools) ? p.spools.map(normalizeSpool) : d.spools;
+  return {
+    ...d, ...p,
+    printer: { ...d.printer, ...(p.printer ?? {}) },
+    labels: { ...d.labels, ...(p.labels ?? {}) },
+    spools,
+    // A spool deleted on another device must not leave this one following a
+    // record that is no longer there.
+    spoolId: spools.some((s) => s.id === p.spoolId) ? p.spoolId ?? null : null,
+    updatedAt: p.updatedAt ?? 1,
+  };
 }
 
 export type StorageMode = 'checking' | 'server' | 'browser' | 'server-error';
+
+/** The spool id in `#spool=<id>`, as printed on a label's QR code. */
+function spoolIdFromHash(): string | null {
+  if (typeof location === 'undefined') return null;
+  const m = /[#&?]spool=([^&]+)/i.exec(location.hash);
+  return m ? decodeURIComponent(m[1]).trim().toUpperCase() || null : null;
+}
 
 export function App() {
   const [persisted, setPersistedRaw] = useState<Persisted>(() => normalize(loadLocal<Persisted>()));
@@ -86,12 +111,20 @@ export function App() {
   const machine = MACHINES.find((m) => m.id === persisted.machineId) ?? MACHINES[0];
   const filament = FILAMENTS.find((f) => f.id === persisted.filamentId) ?? FILAMENTS[0];
   const process = PROCESSES.find((p) => p.id === persisted.processId && p.nozzles.includes(machine.nozzle)) ?? defaultProcessForNozzle(machine.nozzle);
-  const baseSettings = useMemo(() => buildSettings(machine, filament, process), [machine, filament, process]);
-  const settings = useMemo(() => buildSettings(machine, filament, process, persisted.overrides), [machine, filament, process, persisted.overrides]);
+  const spool = persisted.spools.find((s) => s.id === persisted.spoolId) ?? null;
+  // Most of a spool has nothing to do with the slice. Keying the settings on
+  // what it actually contributes — rather than on the record's identity — keeps
+  // a note, a purchase date, or the grams booked after a print from rebuilding
+  // the settings and making a finished result look stale.
+  const spoolKey = JSON.stringify(spool ? spoolSettings(spool) : null);
+  /* eslint-disable react-hooks/exhaustive-deps */
+  const baseSettings = useMemo(() => buildSettings(machine, filament, process, {}, spool), [machine, filament, process, spoolKey]);
+  const settings = useMemo(() => buildSettings(machine, filament, process, persisted.overrides, spool), [machine, filament, process, persisted.overrides, spoolKey]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const [objects, setObjects] = useState<PlateObject[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'prepare' | 'preview' | 'monitor'>('prepare');
+  const [mode, setMode] = useState<'prepare' | 'preview' | 'monitor' | 'filament'>('prepare');
   const [relay, setRelay] = useState<boolean | null>(null);
   useEffect(() => { relayAvailable().then(setRelay); }, []);
   const [progress, setProgress] = useState<{ stage: string; fraction: number } | null>(null);
@@ -102,6 +135,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
+  /** Spool id from a scanned label (#spool=...), until the spools are loaded. */
+  const [scannedSpool, setScannedSpool] = useState<string | null>(() => spoolIdFromHash());
   const fileInput = useRef<HTMLInputElement>(null);
   const client = useRef(new SlicerClient());
 
@@ -116,6 +151,27 @@ export function App() {
     document.addEventListener('visibilitychange', check);
     return () => { alive = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', check); };
   }, []);
+
+  // A label scanned with a phone opens this page at #spool=<id>. The spools may
+  // still be coming from the server at that point, so the id is held until they
+  // arrive and only then resolved — or reported as unknown.
+  useEffect(() => {
+    const onHash = () => { const id = spoolIdFromHash(); if (id) setScannedSpool(id); };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  useEffect(() => {
+    if (!scannedSpool || storage === 'checking') return;
+    const match = persisted.spools.find((s) => s.id === scannedSpool);
+    if (match) {
+      setPersisted((p) => ({ ...p, spoolId: match.id, filamentId: match.filamentId }));
+      setNotice(`Scanned ${spoolName(match)} — now in use.`);
+      setMode('filament');
+    } else {
+      setError(`No spool here has the id ${scannedSpool}. It may have been added on another device, or deleted.`);
+    }
+    setScannedSpool(null);
+  }, [scannedSpool, storage, persisted.spools, setPersisted]);
 
   // Anything that changes the plate or the settings makes the previous result stale.
   useEffect(() => { if (result) setResultStale(true); }, [objects, settings]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -190,6 +246,32 @@ export function App() {
     setPersisted((p) => ({ ...p, overrides: { ...p.overrides, [key]: value } }));
   const resetOverride = (key: keyof SliceSettings) =>
     setPersisted((p) => { const o = { ...p.overrides }; delete o[key]; return { ...p, overrides: o }; });
+
+  /**
+   * Choosing a spool also moves the filament preset to that spool's material,
+   * so the two selects never disagree about what is loaded. Choosing a preset
+   * by hand means the user has moved off the spool, so the spool is released.
+   */
+  const setSpool = (id: string | null) => {
+    setPersisted((p) => {
+      const s = p.spools.find((x) => x.id === id);
+      return { ...p, spoolId: s ? s.id : null, filamentId: s ? s.filamentId : p.filamentId };
+    });
+  };
+  const setFilament = (id: string) => {
+    setPersisted((p) => {
+      const current = p.spools.find((x) => x.id === p.spoolId);
+      return { ...p, filamentId: id, spoolId: current && current.filamentId !== id ? null : p.spoolId };
+    });
+  };
+
+  /** Book filament against the spool in use; silent when there is none. */
+  const bookUsage = useCallback((grams: number) => {
+    setPersisted((p) => {
+      if (!p.spoolId || !(grams > 0)) return p;
+      return { ...p, spools: p.spools.map((s) => (s.id === p.spoolId ? withUsage(s, grams) : s)) };
+    });
+  }, [setPersisted]);
 
   const setMachine = (id: string) => {
     const m = MACHINES.find((x) => x.id === id) ?? MACHINES[0];
@@ -280,6 +362,9 @@ export function App() {
         <div className="modes">
           <button className={mode === 'prepare' ? 'tab active' : 'tab'} onClick={() => setMode('prepare')}>Prepare</button>
           <button className={mode === 'preview' ? 'tab active' : 'tab'} disabled={!result} onClick={() => setMode('preview')}>Preview</button>
+          <button className={mode === 'filament' ? 'tab active' : 'tab'} onClick={() => setMode('filament')} title="Spools, temperatures and labels">
+            Filament{spool ? <span className="live-chip"><i className="swatch tiny" style={{ background: spool.color }} />{spool.id}</span> : null}
+          </button>
           <button className={mode === 'monitor' ? 'tab active' : 'tab'} disabled={!printerConfigured} title={printerConfigured ? 'Live printer status and camera' : 'Set up the printer under Send to printer first'} onClick={() => setMode('monitor')}>
             Monitor{live ? <span className={`live-chip ${isPrintingStatus(live.status) ? 'live' : ''}`}>{printerPct !== null ? `${printerPct}%` : statusLabel(live.status)}</span> : null}
           </button>
@@ -307,7 +392,10 @@ export function App() {
         machine={machine} filament={filament} process={process}
         settings={settings} baseSettings={baseSettings} overrides={persisted.overrides}
         onMachine={setMachine}
-        onFilament={(id) => setPersisted((p) => ({ ...p, filamentId: id }))}
+        onFilament={setFilament}
+        spools={persisted.spools}
+        spoolId={persisted.spoolId}
+        onSpool={setSpool}
         onProcess={(id) => setPersisted((p) => ({ ...p, processId: id }))}
         onOverride={setOverride}
         onResetOverride={resetOverride}
@@ -318,7 +406,7 @@ export function App() {
       <main className="stage">
         <Viewport
           objects={objects} selectedId={selectedId} onSelect={setSelectedId}
-          mode={mode} preview={result?.preview ?? null} visibleLayers={visibleLayers} showTravel={showTravel}
+          mode={mode === 'filament' ? 'prepare' : mode} preview={result?.preview ?? null} visibleLayers={visibleLayers} showTravel={showTravel}
           bedX={settings.bedSizeX} bedY={settings.bedSizeY} maxZ={settings.maxZ}
           outOfBounds={outOfBounds} onDropFiles={addFiles}
         />
@@ -336,6 +424,24 @@ export function App() {
           <div className="overlay empty">
             <p>Drop an <b>STL</b>, <b>3MF</b> or <b>OBJ</b> here to start.</p>
             <button className="btn ghost" onClick={addSample}>Try the sample model</button>
+          </div>
+        )}
+        {mode === 'filament' && (
+          <div className="overlay filament-overlay">
+            <FilamentView
+              spools={persisted.spools}
+              selectedId={persisted.spoolId}
+              onSelect={setSpool}
+              onChange={(spools) => setPersisted((p) => ({
+                ...p,
+                spools,
+                spoolId: spools.some((s) => s.id === p.spoolId) ? p.spoolId : null,
+              }))}
+              config={persisted.labels}
+              onConfig={(labels) => setPersisted((p) => ({ ...p, labels }))}
+              relay={Boolean(relay)}
+              lastSliceG={result && !resultStale ? result.stats.filamentG : null}
+            />
           </div>
         )}
         {mode === 'monitor' && printerConfigured && (
@@ -374,7 +480,15 @@ export function App() {
         <OutputPanel
           result={result} fileName={fileName} stale={resultStale}
           printer={persisted.printer} onPrinter={(printer) => setPersisted((p) => ({ ...p, printer }))}
-          onPrintStarted={() => { setMode('monitor'); setTimeout(printerStatus.refresh, 1500); }}
+          onPrintStarted={() => {
+            const grams = result?.stats.filamentG ?? 0;
+            if (spool && grams > 0) {
+              bookUsage(grams);
+              setNotice(`Booked ${grams.toFixed(1)} g against ${spoolName(spool)}.`);
+            }
+            setMode('monitor');
+            setTimeout(printerStatus.refresh, 1500);
+          }}
         />
       </aside>
     </div>
