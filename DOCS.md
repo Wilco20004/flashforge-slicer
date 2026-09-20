@@ -72,6 +72,30 @@ fields — anything else prints blank, and the slicer warns you before it does:
 Give the template's **image an override variable** (any name). The slicer fills
 it with a QR code and a colour patch drawn to that block's exact pixel size.
 
+### A template to start from
+
+A 62 x 29 mm die-cut label (DK-11209), with the QR code and colour patch
+stacked down the left and four lines of text beside them. Run this against
+LabelForge once and the template appears in its list, ready to edit:
+
+```bash
+curl -X POST http://<labelforge-ip>:8095/api/templates \
+  -H 'Content-Type: application/json' -d '{
+  "name": "Filament spool 62x29",
+  "label_size": "62x29",
+  "image": { "data": "", "variable": "art", "x": 12, "y": 8, "width": 130, "height": 255 },
+  "text_fields": [
+    { "id": "name",  "x": 160, "y": 10,  "width": 524, "height": 96, "font_size": 40, "bold": true,  "align": "left", "text": "{{name}}" },
+    { "id": "temps", "x": 160, "y": 112, "width": 524, "height": 44, "font_size": 34, "bold": false, "align": "left", "text": "{{temps}}" },
+    { "id": "left",  "x": 160, "y": 160, "width": 524, "height": 40, "font_size": 30, "bold": false, "align": "left", "text": "{{remaining}} left · {{color_hex}}" },
+    { "id": "ident", "x": 160, "y": 204, "width": 524, "height": 36, "font_size": 26, "bold": false, "align": "left", "text": "{{id}} · {{purchased}}" }
+  ]
+}'
+```
+
+The 130 x 255 image block gives the QR 4 px a module, comfortably above the
+3 px floor, with the colour patch below it.
+
 Two things are worth knowing when laying the template out:
 
 - **Give the image block room.** The QR is drawn at a whole number of pixels per
