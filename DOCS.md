@@ -127,3 +127,6 @@ Leave the prefix blank and the QR just holds the spool id.
 - Direct access on port 8099 is optional; Ingress works without exposing it.
 - Slicing speed depends on the device you open the page on, not on the Home
   Assistant host.
+- Opened through Ingress the page leaves out its own title bar, since the
+  panel header above it already names the add-on. Opened directly on port 8099
+  it keeps the title, because nothing else is showing one.

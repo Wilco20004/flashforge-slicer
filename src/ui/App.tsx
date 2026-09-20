@@ -14,6 +14,7 @@ import { mergeMeshes } from '../geometry/mesh';
 import { sampleMesh } from '../geometry/primitives';
 import { SlicerClient, type SliceOutput } from '../slicer/client';
 import { updateAvailable, reloadForUpdate, alreadyReloadedForThisBuild } from './buildInfo';
+import { isHomeAssistantIngress } from './host';
 import type { SliceSettings } from '../slicer/settings';
 import { MACHINES, FILAMENTS, PROCESSES, DEFAULT_MACHINE_ID, DEFAULT_FILAMENT_ID, buildSettings, defaultProcessForNozzle } from '../profiles';
 import { normalizeSpool, spoolName, spoolSettings, withUsage, type Spool } from '../profiles/spools';
@@ -137,6 +138,7 @@ export function App() {
   const [updateReady, setUpdateReady] = useState(false);
   /** Spool id from a scanned label (#spool=...), until the spools are loaded. */
   const [scannedSpool, setScannedSpool] = useState<string | null>(() => spoolIdFromHash());
+  const ingress = useMemo(() => isHomeAssistantIngress(), []);
   const fileInput = useRef<HTMLInputElement>(null);
   const client = useRef(new SlicerClient());
 
@@ -352,13 +354,16 @@ export function App() {
   return (
     <div className={mode === 'monitor' ? 'app monitoring' : 'app'}>
       <header className="topbar">
-        <div className="brand">
-          <span className="logo">🖨️</span>
-          <div>
-            <strong>Flashforge Slicer</strong>
-            <small>Adventurer 5M / 5M Pro · runs entirely in your browser</small>
+        {/* Home Assistant's own panel header already names the add-on. */}
+        {!ingress && (
+          <div className="brand">
+            <span className="logo">🖨️</span>
+            <div>
+              <strong>Flashforge Slicer</strong>
+              <small>Adventurer 5M / 5M Pro · runs entirely in your browser</small>
+            </div>
           </div>
-        </div>
+        )}
         <div className="modes">
           <button className={mode === 'prepare' ? 'tab active' : 'tab'} onClick={() => setMode('prepare')}>Prepare</button>
           <button className={mode === 'preview' ? 'tab active' : 'tab'} disabled={!result} onClick={() => setMode('preview')}>Preview</button>

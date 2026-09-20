@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.4
+
+- **No title bar of its own inside Home Assistant.** Opened through Ingress the
+  page sat under Home Assistant's own panel header, which already carries the
+  add-on's name and icon, so the title and the "runs entirely in your browser"
+  line said it a second time — and on a phone they took a whole row of the
+  topbar to do it. Under Ingress the page now starts at the tabs: 57 px of
+  topbar instead of 102 px on a phone. Opened directly on port 8099 it keeps
+  its title, since nothing else is drawing one there.
+
 ## 0.7.3
 
 - **The tab row ran off the side of the page on a phone.** The Filament tab
