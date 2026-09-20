@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2
+
+- **Camera fix.** The stream is now requested with the exact URL the printer
+  advertises (`/?action=stream`); the extra cache-busting parameter added before
+  made the Flashforge camera server reject the request.
+- When a stream fails, Monitor reports the HTTP status and content type it got
+  back (or that nothing answered) instead of a bare error.
+
 ## 0.3.1
 
 - **USB / external cameras.** When the printer does not advertise a camera, Monitor

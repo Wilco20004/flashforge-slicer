@@ -22,6 +22,28 @@ export function MonitorView(p: MonitorViewProps) {
   const [camera, setCamera] = useState(false);
   const [camKey, setCamKey] = useState(0);
   const [camError, setCamError] = useState(false);
+  const [camDiag, setCamDiag] = useState<string | null>(null);
+  /** When the <img> fails, ask for the stream headers once so the message says why. */
+  const diagnose = async (url: string) => {
+    setCamDiag('checking…');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+      const ct = r.headers.get('content-type') ?? 'no content-type';
+      let hint = '';
+      if (r.status === 502 || r.status === 504) hint = ' — the relay could not connect to the camera port; is the camera enabled on the printer?';
+      else if (r.status === 403) hint = ' — the relay refused this address (only private LAN IPs are allowed).';
+      else if (r.status === 404) hint = ' — nothing answers at this path; the camera may be off or use a different URL.';
+      else if (r.ok && !/multipart|image|video|octet/i.test(ct)) hint = ' — not an image or MJPEG stream.';
+      else if (r.ok) hint = ' — the stream answers; the browser could not decode it. Try Retry.';
+      setCamDiag(`HTTP ${r.status}, ${ct}${hint}`);
+      ctrl.abort();
+    } catch (e) {
+      const name = e instanceof Error ? e.name : String(e);
+      setCamDiag(name === 'AbortError' ? 'no answer within 8 s (the camera port did not respond)' : `request failed (${name}) — blocked by the browser or unreachable`);
+    } finally { clearTimeout(timer); }
+  };
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const d = p.detail;
@@ -57,7 +79,7 @@ export function MonitorView(p: MonitorViewProps) {
     <div className="monitor">
       <div className="monitor-camera">
         {camera && cam && !camError ? (
-          <img key={camKey} src={cam + (cam.includes('?') ? '&' : '?') + 't=' + camKey} alt="Printer camera" onError={() => setCamError(true)} />
+          <img key={camKey} src={cam} alt="Printer camera" onError={() => { setCamError(true); diagnose(cam); }} />
         ) : (
           <div className="camera-placeholder">
             {!d ? <p>Waiting for the printer…</p>
@@ -79,8 +101,9 @@ export function MonitorView(p: MonitorViewProps) {
               : camError ? (
                 <p>
                   The camera stream did not load from <code>{cam}</code>.
+                  {camDiag ? <><br /><small>{camDiag}</small></> : null}
                   {pageIsHttps() && !p.relay ? ' On an HTTPS page the stream needs the relay (Docker / Home Assistant version).' : ''}
-                  {' '}<button className="btn small ghost" onClick={() => { setCamError(false); setCamKey((k) => k + 1); }}>Retry</button>
+                  {' '}<button className="btn small ghost" onClick={() => { setCamError(false); setCamDiag(null); setCamKey((k) => k + 1); }}>Retry</button>
                   {p.customCameraUrl ? <button className="btn small ghost" onClick={() => { p.onCustomCameraUrl(''); setCamera(false); setCamError(false); }}>Clear URL</button> : null}
                 </p>
               )
