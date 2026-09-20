@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.6
+
+- **Fixed "Slicing worker crashed" after an add-on update.** Updating the add-on
+  replaces every file on the server, including the content-hashed chunk that
+  holds the slicing worker. A page left open from the previous version asked for
+  its old chunk, got a 404 and failed at the moment Slice was pressed. The page
+  now starts and handshakes the worker *before* handing it the model, so a worker
+  that cannot load falls back to slicing in the page instead of losing the job.
+  If the rest of the old build is gone too, the page reloads itself once.
+- **Update notice.** The app checks the server's build stamp on load, when it
+  comes back to the foreground and every ten minutes, and offers a Reload button
+  when the add-on has been updated underneath it.
+- The entry page is served with `Cache-Control: no-cache`, so a reload always
+  picks up the new version.
+
 ## 0.3.5
 
 - **Print time estimate fixed.** The estimator treated every vertex of a

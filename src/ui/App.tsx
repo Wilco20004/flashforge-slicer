@@ -13,6 +13,7 @@ import { loadModelFile, SUPPORTED_EXTENSIONS } from '../geometry/loaders';
 import { mergeMeshes } from '../geometry/mesh';
 import { sampleMesh } from '../geometry/primitives';
 import { SlicerClient, type SliceOutput } from '../slicer/client';
+import { updateAvailable, reloadForUpdate, alreadyReloadedForThisBuild } from './buildInfo';
 import type { SliceSettings } from '../slicer/settings';
 import { MACHINES, FILAMENTS, PROCESSES, DEFAULT_MACHINE_ID, DEFAULT_FILAMENT_ID, buildSettings, defaultProcessForNozzle } from '../profiles';
 import { renderThumbnail } from '../preview/thumbnail';
@@ -99,8 +100,22 @@ export function App() {
   const [visibleLayers, setVisibleLayers] = useState(1);
   const [showTravel, setShowTravel] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [updateReady, setUpdateReady] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const client = useRef(new SlicerClient());
+
+  // The add-on can be updated while this page is open. Its old asset chunks are
+  // then gone from the server, so anything loaded on demand (the slicing worker)
+  // would 404. Watch for a new build and offer a reload.
+  useEffect(() => {
+    let alive = true;
+    const check = () => { if (document.visibilityState === 'visible') void updateAvailable().then((u) => { if (alive && u) setUpdateReady(true); }); };
+    check();
+    const timer = window.setInterval(check, 10 * 60 * 1000);
+    document.addEventListener('visibilitychange', check);
+    return () => { alive = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', check); };
+  }, []);
 
   // Anything that changes the plate or the settings makes the previous result stale.
   useEffect(() => { if (result) setResultStale(true); }, [objects, settings]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -198,6 +213,7 @@ export function App() {
     if (!objects.length || progress) return;
     if (outOfBounds.size) { setError('Some objects are outside the printable area. Move or scale them first.'); return; }
     setError(null);
+    setNotice(null);
     setProgress({ stage: 'Preparing', fraction: 0 });
     try {
       const merged = mergeMeshes(objects.map((o) => ({ positions: worldPositions(o), name: o.name })));
@@ -211,12 +227,19 @@ export function App() {
       const out = await client.current.slice(merged.positions, settings, {
         thumbnailPng, modelName,
         onProgress: (stage, fraction) => setProgress({ stage, fraction }),
+        onFallback: () => setNotice('Slicing in the page because the background worker could not start. The interface will not respond until it finishes.'),
       });
       setResult(out);
       setResultStale(false);
       setVisibleLayers(out.stats.layerCount);
       setMode('preview');
     } catch (e) {
+      // A page left open across an add-on update cannot load its own code any
+      // more. Reload once instead of showing a failure the user cannot act on.
+      if (await updateAvailable() && !alreadyReloadedForThisBuild()) {
+        setProgress({ stage: 'Updated on the server, reloading', fraction: 1 });
+        if (reloadForUpdate()) return;
+      }
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setProgress(null);
@@ -272,6 +295,14 @@ export function App() {
         </div>
       </header>
 
+      {updateReady && (
+        <div className="update-bar">
+          <span>A newer version of Flashforge Slicer is on the server.</span>
+          <button className="btn small" onClick={() => { if (!reloadForUpdate()) location.reload(); }}>Reload</button>
+          <button className="btn ghost small" onClick={() => setUpdateReady(false)}>Later</button>
+        </div>
+      )}
+
       <SettingsPanel
         machine={machine} filament={filament} process={process}
         settings={settings} baseSettings={baseSettings} overrides={persisted.overrides}
@@ -300,6 +331,7 @@ export function App() {
           </div>
         )}
         {error && <div className="overlay error" onClick={() => setError(null)}>{error}</div>}
+        {!error && notice && <div className="overlay notice" onClick={() => setNotice(null)}>{notice}</div>}
         {!objects.length && !progress && (
           <div className="overlay empty">
             <p>Drop an <b>STL</b>, <b>3MF</b> or <b>OBJ</b> here to start.</p>

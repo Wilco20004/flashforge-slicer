@@ -221,3 +221,9 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 4px; }
 @media (max-width: 480px) {
   .grid2 { grid-template-columns: 1fr; }
 }
+
+/* The add-on can be replaced while a page is open; offer the new build. */
+.update-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 14px; background: #3a2a10; border-bottom: 1px solid #5a4218; color: #f0c98a; font-size: 13px; }
+.update-bar span { flex: 1 1 auto; min-width: 180px; }
+.btn.small { padding: 4px 10px; font-size: 12px; }
+.overlay.notice { top: 12px; left: 50%; transform: translateX(-50%); background: #2a3550; border: 1px solid #445d90; color: #cfe0ff; padding: 8px 14px; border-radius: 8px; cursor: pointer; max-width: 80%; font-size: 13px; }

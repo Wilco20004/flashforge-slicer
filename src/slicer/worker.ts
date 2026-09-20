@@ -22,7 +22,9 @@ export interface SliceDone {
   layerZs: Float32Array;
 }
 export interface SliceError { type: 'error'; id: number; message: string }
-export type WorkerMessage = SliceProgress | SliceDone | SliceError;
+/** Sent once as soon as the worker script has loaded, so the page knows it is usable. */
+export interface SliceReady { type: 'ready' }
+export type WorkerMessage = SliceReady | SliceProgress | SliceDone | SliceError;
 
 self.onmessage = (ev: MessageEvent<SliceRequest>) => {
   const req = ev.data;
@@ -41,3 +43,5 @@ self.onmessage = (ev: MessageEvent<SliceRequest>) => {
     post({ type: 'error', id: req.id, message: e instanceof Error ? e.message : String(e) });
   }
 };
+
+(self as unknown as Worker).postMessage({ type: 'ready' } satisfies SliceReady);

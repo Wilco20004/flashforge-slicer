@@ -1,6 +1,25 @@
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
+/** Identifies this exact build. The page compares it with version.json to spot an update. */
+const BUILD_ID = `${pkg.version}+${Date.now().toString(36)}`;
+
+/** Publishes the build id so an already-open page can notice that the server was updated. */
+function buildStamp(): Plugin {
+  return {
+    name: 'build-stamp',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ build: BUILD_ID, version: pkg.version }) + '\n',
+      });
+    },
+  };
+}
 
 /** Dev-only twin of the nginx printer relay and settings store (see nginx.conf). */
 function printerRelay(): Plugin {
@@ -50,8 +69,11 @@ function printerRelay(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), printerRelay()],
+  plugins: [react(), printerRelay(), buildStamp()],
   base: './',
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   build: {
     outDir: 'dist',
     target: 'es2020',
