@@ -370,13 +370,17 @@ export function App() {
           </button>
         </div>
         <div className="actions">
+          {/* Stays mounted whatever the tab: the objects panel's Add button opens it too. */}
           <input ref={fileInput} type="file" accept={SUPPORTED_EXTENSIONS.join(',')} multiple hidden onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
-          <button className="btn" onClick={() => fileInput.current?.click()}>Open model</button>
+          {mode === 'prepare' && <button className="btn" onClick={() => fileInput.current?.click()}>Open model</button>}
+          {/* Opening a model and slicing belong to Prepare; they say nothing on the
+              other tabs. Cancel is the exception — a slice started on Prepare keeps
+              running when the tab is switched, so the way to stop it goes with it. */}
           {progress ? (
             <button className="btn danger" onClick={cancelSlice}>Cancel</button>
-          ) : (
+          ) : mode === 'prepare' ? (
             <button className="btn primary" disabled={!objects.length} onClick={slice}>Slice plate</button>
-          )}
+          ) : null}
         </div>
       </header>
 

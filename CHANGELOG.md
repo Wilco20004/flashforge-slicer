@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.2
+
+- **Open model and Slice plate now belong to the Prepare tab.** They said nothing
+  on Monitor or Filament and took the room the tab row needed on a phone. Cancel
+  is the exception and still appears wherever you are: a slice started on Prepare
+  keeps running when the tab is switched, and previously switching tabs left no
+  way to stop it.
+
 ## 0.7.1
 
 - **The camera on the Monitor tab was a thumbnail.** On a phone the camera shared
