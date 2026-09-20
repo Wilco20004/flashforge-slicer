@@ -61,7 +61,8 @@ npm test             # unit tests for the slicing engine, G-code and arrange
 
 `dist/` is a plain static site, so it can be hosted anywhere. The included
 GitHub Actions workflow publishes it to GitHub Pages on every push to `main`
-(it enables Pages on the first run): https://wilco20004.github.io/flashforge-slicer/
+once Pages is enabled (Settings → Pages → Source: *GitHub Actions*, one time):
+https://wilco20004.github.io/flashforge-slicer/
 
 ## How it works
 

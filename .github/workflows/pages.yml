@@ -1,5 +1,6 @@
-# Publishes the slicer to GitHub Pages. The configure-pages step enables Pages
-# (source: GitHub Actions) on first run, so no manual setup is needed.
+# Publishes the slicer to GitHub Pages on every push to main.
+# One-time setup: Settings → Pages → Source: "GitHub Actions" (the default Actions
+# token is not allowed to create the Pages site itself).
 name: Deploy to GitHub Pages
 on:
   push:
