@@ -24,5 +24,5 @@ export function sampleMesh(): TriangleMesh {
   push(boxMesh(20, 20, 12));                 // base block
   push(boxMesh(30, 8, 3, 0, 0, 12));         // lip overhanging 5 mm on each side
   push(boxMesh(6, 6, 8, 0, 0, 15));          // post
-  return { positions: new Float32Array(tris), name: 'planty-sample' };
+  return { positions: new Float32Array(tris), name: 'sample-part' };
 }

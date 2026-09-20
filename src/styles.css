@@ -5,8 +5,8 @@
   --border: #2a3342;
   --text: #e6ebf2;
   --muted: #8d99a8;
-  --accent: #5ec26a;
-  --accent-2: #3f9a4a;
+  --accent: #ff8a3d;
+  --accent-2: #c96420;
   --warn: #f2b84b;
   --danger: #e0554f;
   --info: #5aa9ff;
@@ -60,7 +60,7 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 4px; }
 .btn:hover { border-color: #3d4a5e; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #08150a; font-weight: 600; }
-.btn.primary:hover:not(:disabled) { background: #6fd47b; }
+.btn.primary:hover:not(:disabled) { background: #ffa066; }
 .btn.danger { background: var(--danger); border-color: var(--danger); color: white; }
 .btn.ghost { background: transparent; }
 .btn.small { padding: 4px 10px; font-size: 12px; }
@@ -147,7 +147,7 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 4px; }
 .printer .field input { width: 150px; }
 .status { margin: 8px 0 0; padding: 6px 8px; border-radius: 6px; font-size: 12px; }
 .status.info { background: rgba(90,169,255,.12); color: var(--info); }
-.status.ok { background: rgba(94,194,106,.12); color: var(--accent); }
+.status.ok { background: rgba(94,194,106,.12); color: #5ec26a; }
 .status.err { background: rgba(224,85,79,.12); color: var(--danger); }
 
 @media (max-width: 1100px) {

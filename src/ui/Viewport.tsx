@@ -157,7 +157,7 @@ export function Viewport(props: ViewportProps) {
     // front edge marker + axes
     const front = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-bedX / 2, -bedY / 2, 0.02), new THREE.Vector3(bedX / 2, -bedY / 2, 0.02)]),
-      new THREE.LineBasicMaterial({ color: 0x5ec26a }),
+      new THREE.LineBasicMaterial({ color: 0xff8a3d }),
     );
     r.bedGroup.add(front);
     const axes = new THREE.AxesHelper(20);

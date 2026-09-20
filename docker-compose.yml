@@ -1,0 +1,8 @@
+services:
+  flashforge-slicer:
+    build: .
+    image: flashforge-slicer:latest
+    container_name: flashforge-slicer
+    restart: unless-stopped
+    ports:
+      - "8099:8099"

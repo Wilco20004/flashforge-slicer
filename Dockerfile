@@ -1,11 +1,11 @@
-# Planty Slicer — static, browser-based slicer for the Flashforge Adventurer 5M.
+# Flashforge Slicer — static, browser-based slicer for the Flashforge Adventurer 5M.
 # Stage 1 builds the site; stage 2 serves it with nginx (works standalone and as
-# a Home Assistant add-on with Ingress). Build context = this directory.
+# a Home Assistant add-on with Ingress). Build context = repository root.
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package.json ./
-# The workspace lockfile lives in the repository root; install from package.json here.
-RUN npm install --no-audit --no-fund --no-package-lock
+COPY package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY index.html vite.config.ts tsconfig.json ./
 COPY src src
 COPY tests tests

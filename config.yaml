@@ -1,8 +1,8 @@
-name: Planty Slicer
+name: Flashforge Slicer
 version: "0.1.0"
-slug: planty_slicer
+slug: flashforge_slicer
 description: Browser-based 3D print slicer for the Flashforge Adventurer 5M / 5M Pro
-url: https://github.com/wilco20004/planty/tree/main/slicer
+url: https://github.com/wilco20004/flashforge-slicer
 arch:
   - aarch64
   - amd64

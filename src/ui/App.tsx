@@ -15,7 +15,7 @@ import { renderThumbnail } from '../preview/thumbnail';
 import { PATH_TYPES, PATH_TYPE_COLOR, PATH_TYPE_LABEL } from '../slicer/plan';
 import { formatDuration } from '../slicer/gcode';
 
-const STORAGE_KEY = 'planty-slicer-v1';
+const STORAGE_KEY = 'flashforge-slicer-v1';
 
 interface Persisted {
   machineId: string;
@@ -200,10 +200,10 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="logo">🌿</span>
+          <span className="logo">🖨️</span>
           <div>
-            <strong>Planty Slicer</strong>
-            <small>for Flashforge Adventurer 5M · runs entirely in your browser</small>
+            <strong>Flashforge Slicer</strong>
+            <small>Adventurer 5M / 5M Pro · runs entirely in your browser</small>
           </div>
         </div>
         <div className="modes">

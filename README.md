@@ -1,9 +1,12 @@
-# Planty Slicer — browser-based slicer for the Flashforge Adventurer 5M
+# Flashforge Slicer
 
-A complete FDM slicer that runs entirely in the browser: load a model, place it on
-the bed, slice, preview the toolpaths layer by layer, and download G-code ready
-for a **Flashforge Adventurer 5M or 5M Pro**. No server, no install — the slicing
-engine runs in a Web Worker on your machine and nothing is uploaded anywhere.
+A complete FDM slicer for the **Flashforge Adventurer 5M and 5M Pro** that runs
+entirely in the browser. Load a model, place it on the bed, slice, preview the
+toolpaths layer by layer and download G-code ready for the printer. No server,
+no install: the slicing engine runs in a Web Worker on your device and nothing
+is uploaded anywhere. Works on phones and tablets too.
+
+Run it as a static site, as a Docker container, or as a Home Assistant add-on.
 
 ## Features
 
@@ -30,18 +33,18 @@ engine runs in a Web Worker on your machine and nothing is uploaded anywhere.
 
 ## Running it
 
-**Home Assistant add-on** — add `https://github.com/wilco20004/planty` as an add-on
-repository (Settings → Add-ons → Add-on Store → ⋮ → Repositories), install
-**Planty Slicer**, start it and open **Slicer** from the sidebar. It is served via
-Ingress; port 8099 can optionally be exposed for direct access. `config.yaml`,
-`Dockerfile`, `nginx.conf` and `DOCS.md` in this folder make up the add-on.
+**Home Assistant add-on** — in Home Assistant go to *Settings → Add-ons → Add-on
+Store → ⋮ → Repositories* and add `https://github.com/wilco20004/flashforge-slicer`.
+Install **Flashforge Slicer**, start it and open **Slicer** from the sidebar. It is
+served via Ingress; port 8099 can optionally be exposed for direct access.
+`config.yaml`, `Dockerfile`, `nginx.conf` and `DOCS.md` make up the add-on.
 
-**Docker** — from the repository root:
+**Docker**
 
 ```bash
-docker compose up -d planty-slicer     # http://<host>:8081
-# or build the image on its own
-docker build -t planty-slicer slicer && docker run -d -p 8081:8099 planty-slicer
+docker compose up -d                 # http://<host>:8099
+# or
+docker build -t flashforge-slicer . && docker run -d -p 8099:8099 flashforge-slicer
 ```
 
 The image is nginx serving the static build (about 10 MB). It keeps no state:
@@ -50,15 +53,15 @@ settings live in each browser's localStorage.
 **Development / static hosting**
 
 ```bash
-npm install                    # from the repository root
-npm run dev:slicer             # http://localhost:5173
-npm run build:slicer           # static site in slicer/dist
-npm run test:slicer            # unit tests for the slicing engine and G-code
+npm install
+npm run dev          # http://localhost:5173
+npm run build        # static site in dist/
+npm test             # unit tests for the slicing engine, G-code and arrange
 ```
 
-The build is a plain static site (`slicer/dist`), so it can be hosted anywhere —
-`.github/workflows/slicer-pages.yml` publishes it to GitHub Pages on pushes to `main`
-once Pages is enabled for the repository (Settings → Pages → Source: *GitHub Actions*).
+`dist/` is a plain static site, so it can be hosted anywhere. The included
+GitHub Actions workflow publishes it to GitHub Pages on pushes to `main` once
+Pages is enabled (Settings → Pages → Source: *GitHub Actions*).
 
 ## How it works
 
@@ -66,18 +69,18 @@ once Pages is enabled for the repository (Settings → Pages → Source: *GitHub
 model file ──▶ TriangleMesh ──▶ (transform, merge) ──▶ Web Worker
                                                           │
    slice.ts     plane/triangle intersection → oriented segments → closed loops → Clipper polygons
-   engine.ts    supports (treeSupport.ts) · top/bottom shells · walls · infill · skirt/brim · path ordering (per layer)
+   engine.ts    supports (treeSupport.ts) · top/bottom shells · walls · infill · skirt/brim · path ordering
    gcode.ts     speeds/accel · extrusion maths · retraction/Z-hop · fan · time estimate · header/thumbnail
                                                           │
                                         gcode + preview segments ◀─┘
 ```
 
 - `src/geometry/` — STL / 3MF / OBJ parsers and mesh helpers
-- `src/slicer/` — the engine (`slice`, `polygons`, `infill`, `engine`, `gcode`, `worker`)
+- `src/slicer/` — the engine (`slice`, `polygons`, `infill`, `treeSupport`, `engine`, `gcode`, `worker`)
 - `src/profiles/` — machine, filament and process presets (values taken from OrcaSlicer's Flashforge profiles)
 - `src/printer/` — Flashforge LAN API and Moonraker upload clients
 - `src/ui/` — React UI; `src/preview/` — thumbnail rendering
-- `tests/` — Vitest suite (slicing geometry, shells, supports, adhesion, G-code structure, time estimate)
+- `tests/` — Vitest suite (slicing geometry, shells, supports, adhesion, G-code structure, time estimate, arrange)
 
 ## Limitations / roadmap
 
@@ -86,3 +89,8 @@ model file ──▶ TriangleMesh ──▶ (transform, merge) ──▶ Web Wor
 - Single extruder / single filament per print (the 5M has one extruder anyway).
 - LAN upload from a browser depends on the printer firmware's CORS behaviour (see above).
 - The time estimate uses Klipper-like kinematics but not the printer's exact pressure-advance/smoothing behaviour; expect it to be within roughly 10 %.
+
+## License
+
+MIT. Machine, filament and process values are derived from the
+[OrcaSlicer](https://github.com/SoftFever/OrcaSlicer) Flashforge system profiles.

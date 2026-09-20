@@ -1,4 +1,4 @@
-# Planty Slicer
+# Flashforge Slicer
 
 A complete 3D print slicer for the **Flashforge Adventurer 5M and 5M Pro** that
 runs entirely in your browser. This add-on only hosts the static web app; all

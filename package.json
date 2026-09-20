@@ -1,7 +1,9 @@
 {
-  "name": "planty-slicer",
+  "name": "flashforge-slicer",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
+  "repository": "github:wilco20004/flashforge-slicer",
   "type": "module",
   "description": "Browser-based FDM slicer for the Flashforge Adventurer 5M / 5M Pro",
   "scripts": {
