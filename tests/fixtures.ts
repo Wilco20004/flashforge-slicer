@@ -29,3 +29,17 @@ export function tubeMesh(outer: number, inner: number, h: number): TriangleMesh 
   quad([-i, i, 0], [-i, -i, 0], [-o, -o, 0], [-o, o, 0]);
   return { positions: new Float32Array(tris), name: 'tube' };
 }
+
+/** Upright rectangular slab: length L along x, thickness T along y, height h. */
+export function slabMesh(L: number, T: number, h: number): TriangleMesh {
+  const x = L / 2, y = T / 2;
+  const tris: number[] = [];
+  const quad = (a: number[], b: number[], c: number[], d: number[]) => tris.push(...a, ...b, ...c, ...a, ...c, ...d);
+  quad([-x, -y, 0], [x, -y, 0], [x, -y, h], [-x, -y, h]);
+  quad([x, -y, 0], [x, y, 0], [x, y, h], [x, -y, h]);
+  quad([x, y, 0], [-x, y, 0], [-x, y, h], [x, y, h]);
+  quad([-x, y, 0], [-x, -y, 0], [-x, -y, h], [-x, y, h]);
+  quad([-x, -y, h], [x, -y, h], [x, y, h], [-x, y, h]);
+  quad([-x, y, 0], [x, y, 0], [x, -y, 0], [-x, -y, 0]);
+  return { positions: new Float32Array(tris), name: 'slab' };
+}

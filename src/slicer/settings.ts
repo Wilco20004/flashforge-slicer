@@ -70,6 +70,8 @@ export interface SliceSettings {
   firstLayerLineWidth: number;
   wallLoops: number;
   wallOrder: WallOrder;
+  /** Let a wall bead widen or narrow so a thin feature is filled exactly. */
+  variableWallWidth: boolean;
   topLayers: number;
   bottomLayers: number;
   seamPosition: SeamPosition;
@@ -198,6 +200,7 @@ export const DEFAULT_SETTINGS: SliceSettings = {
   outerWallLineWidth: 0.42,
   firstLayerLineWidth: 0.5,
   wallLoops: 2,
+  variableWallWidth: true,
   wallOrder: 'inner-outer',
   topLayers: 5,
   bottomLayers: 3,

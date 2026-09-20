@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { planLayers } from '../src/slicer/engine';
 import { generateGcode, pathTime, substitute } from '../src/slicer/gcode';
 import { DEFAULT_SETTINGS, type SliceSettings } from '../src/slicer/settings';
-import { boxMesh, tubeMesh } from './fixtures';
+import { boxMesh, tubeMesh, slabMesh } from './fixtures';
 import { parallelLines, connectLines, dropShortLines } from '../src/slicer/infill';
 import { pt } from '../src/slicer/polygons';
 import { MACHINES, FILAMENTS, PROCESSES, buildSettings } from '../src/profiles';
@@ -391,3 +391,67 @@ describe('ironing', () => {
     expect(Number(e)).toBeGreaterThan(0);
   });
 });
+
+describe('variable width walls', () => {
+  const wallsOf = (positions: Float32Array, o: Partial<SliceSettings> = {}) =>
+    planLayers(positions, settings({ supportEnabled: false, ...o }))
+      .layers[12].paths.filter((p) => p.type.endsWith('wall'));
+
+  it('prints a rib too thin for a fixed-width loop', () => {
+    const rib = slabMesh(30, 0.3, 6).positions;
+    expect(wallsOf(rib, { variableWallWidth: false }).length).toBe(0);
+    const w = wallsOf(rib);
+    expect(w.length).toBe(1);
+    expect(w[0].width).toBeCloseTo(0.3, 1);
+  });
+
+  it('widens beads to fill a wall that is not a whole number of lines', () => {
+    const w = wallsOf(slabMesh(30, 1.0, 6).positions);
+    expect(w.length).toBeGreaterThan(0);
+    for (const p of w) expect(p.width).toBeCloseTo(0.5, 1);
+  });
+
+  it('leaves a part thick enough for nominal walls alone', () => {
+    const thick = boxMesh(30, 30, 6);
+    for (const p of wallsOf(thick.positions)) expect(p.width).toBeCloseTo(0.42, 6);
+    const off = planLayers(thick.positions, settings({ variableWallWidth: false, supportEnabled: false }));
+    const on = planLayers(thick.positions, settings({ variableWallWidth: true, supportEnabled: false }));
+    expect(gcodeFilament(on)).toBeCloseTo(gcodeFilament(off), 3);
+  });
+
+  it('keeps nominal widths when turned off', () => {
+    for (const t of [1.0, 1.3, 2.0]) {
+      for (const p of wallsOf(slabMesh(30, t, 6).positions, { variableWallWidth: false })) {
+        expect(p.width).toBeCloseTo(0.42, 6);
+      }
+    }
+  });
+
+  it('fills a thin-walled part that fixed widths leave hollow', () => {
+    // A 1.2mm square tube: three 0.4 beads fill it, four 0.42 ones do not fit.
+    const tube = tubeMesh(20, 17.6, 6).positions;
+    const off = planLayers(tube, settings({ variableWallWidth: false, supportEnabled: false }));
+    const on = planLayers(tube, settings({ variableWallWidth: true, supportEnabled: false }));
+    expect(gcodeFilament(on)).toBeGreaterThan(gcodeFilament(off));
+    for (const p of on.layers[12].paths.filter((q) => q.type.endsWith('wall'))) {
+      expect(p.width).toBeGreaterThan(0.42 * 0.45);
+      expect(p.width).toBeLessThanOrEqual(0.42 * 1.5);
+    }
+  });
+
+  it('stays inside the part', () => {
+    for (const t of [0.3, 0.6, 1.0, 1.3]) {
+      const { layers } = planLayers(slabMesh(30, t, 6).positions, settings({ supportEnabled: false }));
+      for (const p of layers[12].paths) {
+        for (let i = 0; i < p.pts.length; i += 2) {
+          expect(Math.abs(p.pts[i])).toBeLessThanOrEqual(15.01);
+          expect(Math.abs(p.pts[i + 1])).toBeLessThanOrEqual(t / 2 + 0.01);
+        }
+      }
+    }
+  });
+});
+
+function gcodeFilament(plan: ReturnType<typeof planLayers>): number {
+  return generateGcode(plan.layers, settings({ supportEnabled: false })).stats.filamentMm;
+}

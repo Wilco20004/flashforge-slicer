@@ -263,3 +263,36 @@ export function perimeter(poly: Poly, closed = true): number {
   if (closed && poly.length > 2) len += Math.hypot(poly[0].X - poly[poly.length - 1].X, poly[0].Y - poly[poly.length - 1].Y);
   return len / SCALE;
 }
+
+/**
+ * The area a bead of the given width covers when run along these paths. Unlike
+ * `offset`, the paths are treated as lines rather than as filled regions, so a
+ * closed loop gives a ring rather than a disc.
+ */
+export function stroke(paths: Polys, widthMm: number, closed = true): Polys {
+  if (isEmpty(paths) || widthMm <= 0) return [];
+  const co = new ClipperOffset(3, 0.25 * SCALE / 10);
+  co.AddPaths(paths, JoinType.jtRound, closed ? EndType.etClosedLine : EndType.etOpenRound);
+  const out: Polys = [];
+  co.Execute(out, toInt(widthMm / 2));
+  return out;
+}
+
+/**
+ * How thick a region is, from its area and outline length alone.
+ *
+ * The usual estimate, twice the area over the perimeter, is only right for a
+ * slab of infinite length: a finite one is short by its own thickness over its
+ * length, which on a 1.7mm rib 30mm long is a 5% under-measure - enough to
+ * leave a visible line unfilled. Solving the rectangle instead, area = l*t and
+ * perimeter = 2(l+t), is exact for any rectangle and still right for a ring.
+ * A region too round for that (a disc has no such rectangle) falls back to
+ * four times the area over the perimeter, which is exact for a disc.
+ */
+export function meanWidth(polys: Polys): number {
+  let a = 0, p = 0;
+  for (const q of polys) { a += polyArea(q); p += perimeter(q, true); }
+  if (p <= 0 || a <= 0) return 0;
+  const disc = p * p - 16 * a;
+  return disc >= 0 ? (p - Math.sqrt(disc)) / 4 : (4 * a) / p;
+}

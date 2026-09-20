@@ -19,6 +19,7 @@ const ffCommon: Partial<SliceSettings> = {
   resolution: 0.012,
   infillWallOverlap: 0.5,
   minSparseInfillArea: 15,
+  variableWallWidth: true,
   gapFillEnabled: true,
   gapFillMinArea: 0.05,
   ironingEnabled: false,

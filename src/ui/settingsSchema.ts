@@ -56,6 +56,7 @@ export const SETTINGS_TABS: Tab[] = [
       { title: 'Walls', fields: [
         n('wallLoops', 'Wall loops', '', 1, 0, 20),
         sel('wallOrder', 'Wall order', [{ value: 'inner-outer', label: 'Inner / outer' }, { value: 'outer-inner', label: 'Outer / inner' }]),
+        b('variableWallWidth', 'Variable wall width', 'Widens or narrows beads so thin features are filled exactly'),
       ] },
       { title: 'Top / bottom shells', fields: [
         n('topLayers', 'Top shell layers', '', 1, 0, 30),

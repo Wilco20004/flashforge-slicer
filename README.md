@@ -14,6 +14,8 @@ Run it as a static site, as a Docker container, or as a Home Assistant add-on.
 - **Placement**: move, rotate (X/Y/Z), scale, duplicate; **auto-arrange** packs parts largest-first around the bed centre with clearance for skirt/brim, rotates a part 90° when that is the only way it fits and tells you which parts do not fit; models always sit on the bed; out-of-bounds objects are flagged.
 - **Slicing** (Clipper-based geometry engine):
   - walls (configurable loop count and order), top/bottom shell detection, bridge detection over air or support
+  - **variable width walls**: a feature too thin for another nominal loop is measured and divided into the number of beads that fit, each widened or narrowed to fill it exactly, with an odd bead laid down its centreline — so a 1.05 mm rib is three 0.35 mm beads rather than two 0.42 mm ones and a sliver, and a rib thinner than one line prints instead of disappearing
+  - gap fill for whatever the walls and infill still leave, and optional ironing of top surfaces
   - sparse infill: grid, rectilinear, lines, triangles, concentric — with density and angle
   - tiny sparse regions filled solid, infill/wall overlap, elephant-foot compensation
   - skirt and brim
@@ -73,14 +75,14 @@ https://wilco20004.github.io/flashforge-slicer/
 model file ──▶ TriangleMesh ──▶ (transform, merge) ──▶ Web Worker
                                                           │
    slice.ts     plane/triangle intersection → oriented segments → closed loops → Clipper polygons
-   engine.ts    supports (treeSupport.ts) · top/bottom shells · walls · infill · skirt/brim · path ordering
+   engine.ts    supports (treeSupport.ts) · top/bottom shells · walls (walls.ts) · infill · skirt/brim · path ordering
    gcode.ts     speeds/accel · extrusion maths · retraction/Z-hop · fan · time estimate · header/thumbnail
                                                           │
                                         gcode + preview segments ◀─┘
 ```
 
 - `src/geometry/` — STL / 3MF / OBJ parsers and mesh helpers
-- `src/slicer/` — the engine (`slice`, `polygons`, `infill`, `treeSupport`, `engine`, `gcode`, `worker`)
+- `src/slicer/` — the engine (`slice`, `polygons`, `walls`, `medial`, `gapFill`, `infill`, `treeSupport`, `engine`, `gcode`, `worker`)
 - `src/profiles/` — machine, filament and process presets (values taken from OrcaSlicer's Flashforge profiles)
 - `src/printer/` — Flashforge LAN API and Moonraker upload clients
 - `src/ui/` — React UI; `src/preview/` — thumbnail rendering
@@ -89,7 +91,8 @@ model file ──▶ TriangleMesh ──▶ (transform, merge) ──▶ Web Wor
 ## Limitations / roadmap
 
 - Tree supports use circular branch cross-sections on 2-D layers (no support painting, no "build plate only" mode yet); arrange works on bounding boxes, not exact outlines.
-- No gap fill for walls thinner than the wall count, no ironing, no arc fitting, no variable layer height.
+- Variable width walls measure each connected region and give it one bead width, rather than letting the width vary along a single bead as a Voronoi skeleton (Arachne) would; a region whose thickness changes sharply is resolved a loop at a time instead.
+- No arc fitting and no variable layer height.
 - Single extruder / single filament per print (the 5M has one extruder anyway).
 - LAN upload from a browser depends on the printer firmware's CORS behaviour (see above).
 - The time estimate uses Klipper-like kinematics but not the printer's exact pressure-advance/smoothing behaviour; expect it to be within roughly 10 %.

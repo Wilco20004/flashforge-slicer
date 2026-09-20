@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.6.0
+
+- **Variable width walls.** Wall loops were always exactly one line width, so
+  anything whose thickness was not a whole number of lines came out wrong: a
+  1.3 mm rib got four 0.42 mm beads where 1.68 mm of plastic does not fit, a
+  2.0 mm one got four and left a third of a line hollow, and anything thinner
+  than a single line produced no wall at all and vanished from the print. Each
+  connected part of what is left after the previous loop is now measured, and a
+  part too thin to take the rest of its loops at nominal width plus a core for
+  infill is divided into the number of beads that do fit, each the same fraction
+  of the measured thickness. An odd bead count puts the last bead on the
+  feature's centreline. Measured on slabs from 0.3 mm to 3 mm, the plastic laid
+  down now lands within 1 % of the cross-section at every thickness, against
+  gaps of up to 14 % and over-extrusion of up to 39 % before. Parts thick enough
+  for nominal walls are untouched. Switch it off under Strength.
+- A thin-walled test part (four 1.2 mm square tubes) went from 24m 42s to
+  10m 30s, using 13 % more plastic because the walls are no longer hollow.
+- **Slice contours could join across a corner.** Vertex identity while chaining
+  slice segments into loops packed both coordinates into one number, but the
+  bias and stride pushed the result past the largest exactly representable
+  integer, so the Y half was rounded away in steps of half a millimetre. Any two
+  points sharing an X within that distance were treated as the same vertex, and
+  the loop closed across the corner between them. On a 0.3 mm rib this lost a
+  quarter of the cross-section. Both coordinates now survive the packing.
+- Gap fill no longer widens a hairline gap up to a third of a line width to
+  print it; below that it is left alone, which was costing more in
+  over-extrusion than the gap was worth.
+- Centrelines are taken down the middle of a collapsed sliver rather than along
+  one side of it, which was pushing beads on thin features past the model
+  surface.
+
 ## 0.5.0
 
 - **Gap fill.** Where a feature is too narrow for another wall loop but too wide

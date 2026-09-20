@@ -7,6 +7,7 @@ import {
 } from './polygons';
 import { parallelLines, sparseInfill, connectLines } from './infill';
 import { gapFillPaths } from './gapFill';
+import { generateWalls } from './walls';
 import { computeBounds } from '../geometry/mesh';
 import { generateTreeSupport } from './treeSupport';
 
@@ -193,23 +194,19 @@ export function planLayers(positions: Float32Array, s: SliceSettings, progress?:
       const island = isl[best];
 
       // Walls
-      const walls: Polys[] = [];
-      let curWall = offset(island, -wOuter / 2);
-      for (let k = 0; k < s.wallLoops && !isEmpty(curWall); k++) {
-        walls.push(curWall);
-        curWall = offset(curWall, k === 0 ? -(wOuter / 2 + w / 2) : -w);
-      }
-      const lastWall = walls[walls.length - 1];
-      let innerArea: Polys = [];
-      if (lastWall) {
-        innerArea = offset(lastWall, -w / 2 + s.infillWallOverlap * w);
-      } else if (s.wallLoops === 0) {
-        innerArea = island;
-      }
+      const wall = generateWalls(island, {
+        loops: s.wallLoops,
+        outerWidth: wOuter,
+        innerWidth: w,
+        variable: s.variableWallWidth,
+      });
+      const innerArea: Polys = s.wallLoops === 0
+        ? island
+        : (isEmpty(wall.inner) ? [] : offset(wall.inner, s.infillWallOverlap * w));
 
-      const wallPaths: PrintPath[] = [];
-      walls.forEach((loops, k) => {
-        for (const p of loops) wallPaths.push(makeClosed(k === 0 ? 'outer-wall' : 'inner-wall', p, k === 0 ? wOuter : w));
+      const wallPaths: PrintPath[] = wall.beads.map((bd) => {
+        const type: PathType = bd.loop === 0 ? 'outer-wall' : 'inner-wall';
+        return bd.closed ? makeClosed(type, bd.pts, bd.width) : makeOpen(type, bd.pts, bd.width);
       });
       if (s.wallOrder === 'inner-outer') wallPaths.reverse();
 
@@ -234,12 +231,8 @@ export function planLayers(positions: Float32Array, s: SliceSettings, progress?:
       const infillPaths: PrintPath[] = [];
       // Gap fill: whatever neither a wall band nor the infill area will cover,
       // typically where a feature is too narrow for one more wall loop.
-      if (s.gapFillEnabled && walls.length) {
-        const bands = walls.map((loops, k) => {
-          const ww = k === 0 ? wOuter : w;
-          return difference(offset(loops, ww / 2), offset(loops, -ww / 2));
-        });
-        const gaps = difference(island, unionAll([...bands, innerArea]));
+      if (s.gapFillEnabled && !isEmpty(wall.covered)) {
+        const gaps = difference(island, unionAll([wall.covered, innerArea]));
         for (const g of gapFillPaths(gaps, w, s.gapFillMinArea)) {
           infillPaths.push({ type: 'gap-fill', pts: g.pts, closed: g.closed, width: g.width });
         }

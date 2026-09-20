@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { sliceMesh, layerHeights } from '../src/slicer/slice';
 import { area, polyArea, simplify, pt, toMm } from '../src/slicer/polygons';
-import { boxMesh, tubeMesh } from './fixtures';
+import { boxMesh, tubeMesh, slabMesh } from './fixtures';
 import { parseSTL, toBinarySTL } from '../src/geometry/stl';
 import { signedVolume } from '../src/geometry/mesh';
 
@@ -29,6 +29,17 @@ describe('sliceMesh', () => {
       expect(l.length).toBe(1);
       expect(area(l)).toBeCloseTo(400, 3);
       expect(l[0].length).toBe(4);
+    }
+  });
+  it('joins contours whose vertices share an x within half a millimetre', () => {
+    // The face quads are split on a diagonal, so a thin slab's outline has an
+    // extra vertex partway along each long edge and three vertices sharing each
+    // end's x. Packing those into one vertex key has to keep both coordinates:
+    // losing the low half merges them and the loop closes across the corner.
+    for (const t of [0.3, 0.45, 0.8]) {
+      const [layer] = sliceMesh(slabMesh(30, t, 6).positions, [2.5], 0);
+      expect(layer.length).toBe(1);
+      expect(area(layer)).toBeCloseTo(30 * t, 3);
     }
   });
   it('returns nothing outside the model', () => {

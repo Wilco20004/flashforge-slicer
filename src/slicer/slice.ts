@@ -122,12 +122,18 @@ function edgePoint(ax: number, ay: number, az: number, bx: number, by: number, b
 }
 
 const KEY_SCALE = 1000; // 1 µm
+/** Half the key's coordinate range: ±2097 mm, comfortably past any bed. */
+const KEY_BIAS = 2 ** 21;
+const KEY_SPAN = 2 ** 22;
 
 function key(x: number, y: number): number {
-  // Pack quantised coordinates into one number (safe for |coord| < ~1e6 mm).
-  const qx = Math.round(x * KEY_SCALE) + 2 ** 30;
-  const qy = Math.round(y * KEY_SCALE) + 2 ** 30;
-  return qx * 2 ** 31 + qy;
+  // Both coordinates have to survive the packing: a bias and a stride that put
+  // the product past 2^53 would round the low half away, silently merging every
+  // pair of points that share an X within the lost precision. 22 bits each
+  // keeps the result exact.
+  const qx = Math.round(x * KEY_SCALE) + KEY_BIAS;
+  const qy = Math.round(y * KEY_SCALE) + KEY_BIAS;
+  return qx * KEY_SPAN + qy;
 }
 
 /** Join oriented segments into closed loops (Clipper integer coordinates). */
