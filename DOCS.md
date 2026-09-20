@@ -14,7 +14,8 @@ model data ever leaves your browser.
 4. Check the layer preview, then **Download** the `.gcode` and copy it to the
    printer via USB, or upload it over the LAN (see below).
 
-Settings, presets and any overrides you make are remembered per browser.
+Settings, presets, overrides and the saved printer are stored by the add-on (in its
+`/data` folder), so every phone, tablet or PC that opens the slicer shares them.
 
 ## Sending prints to the printer
 
@@ -29,7 +30,7 @@ Settings, presets and any overrides you make are remembered per browser.
 
 ## Notes
 
-- The add-on stores nothing: there is no configuration and no data folder.
+- The add-on has no options; its only state is the shared settings file in `/data`.
 - Direct access on port 8099 is optional; Ingress works without exposing it.
 - Slicing speed depends on the device you open the page on, not on the Home
   Assistant host.

@@ -6,12 +6,29 @@ function printerRelay(): Plugin {
   return {
     name: 'printer-relay',
     configureServer(server) {
+      let settings = '';
       server.middlewares.use((req, res, next) => {
-        if (req.url?.split('?')[0] === '/relay-status') {
+        const path = req.url?.split('?')[0];
+        if (path === '/relay-status') {
           res.statusCode = 204;
           res.setHeader('X-Printer-Relay', '1');
+          res.setHeader('X-Settings-Store', '1');
           res.end();
           return;
+        }
+        if (path === '/settings.json') {
+          if (req.method === 'PUT') {
+            let body = '';
+            req.on('data', (c) => { body += c; });
+            req.on('end', () => { settings = body; res.statusCode = 204; res.end(); });
+            return;
+          }
+          if (req.method === 'GET') {
+            res.statusCode = settings ? 200 : 404;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(settings);
+            return;
+          }
         }
         next();
       });

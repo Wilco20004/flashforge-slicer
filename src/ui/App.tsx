@@ -14,10 +14,9 @@ import { MACHINES, FILAMENTS, PROCESSES, DEFAULT_MACHINE_ID, DEFAULT_FILAMENT_ID
 import { renderThumbnail } from '../preview/thumbnail';
 import { PATH_TYPES, PATH_TYPE_COLOR, PATH_TYPE_LABEL } from '../slicer/plan';
 import { formatDuration } from '../slicer/gcode';
+import { loadLocal, saveLocal, loadRemote, pickNewer, createRemoteSaver, settingsStoreAvailable, type Stamped } from '../store/settingsStore';
 
-const STORAGE_KEY = 'flashforge-slicer-v1';
-
-interface Persisted {
+interface Persisted extends Stamped {
   machineId: string;
   filamentId: string;
   processId: string;
@@ -25,22 +24,59 @@ interface Persisted {
   printer: PrinterConfig;
 }
 
-function loadPersisted(): Persisted {
-  const fallback: Persisted = {
-    machineId: DEFAULT_MACHINE_ID, filamentId: DEFAULT_FILAMENT_ID,
-    processId: defaultProcessForNozzle(0.4).id, overrides: {}, printer: defaultPrinterConfig(),
-  };
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return fallback;
-    const p = JSON.parse(raw) as Partial<Persisted>;
-    return { ...fallback, ...p, printer: { ...fallback.printer, ...(p.printer ?? {}) } };
-  } catch { return fallback; }
+const defaultPersisted = (): Persisted => ({
+  updatedAt: 0,
+  machineId: DEFAULT_MACHINE_ID, filamentId: DEFAULT_FILAMENT_ID,
+  processId: defaultProcessForNozzle(0.4).id, overrides: {}, printer: defaultPrinterConfig(),
+});
+
+function normalize(p: Partial<Persisted> | null): Persisted {
+  const d = defaultPersisted();
+  if (!p) return d;
+  return { ...d, ...p, printer: { ...d.printer, ...(p.printer ?? {}) }, updatedAt: p.updatedAt ?? 1 };
 }
 
+export type StorageMode = 'checking' | 'server' | 'browser' | 'server-error';
+
 export function App() {
-  const [persisted, setPersisted] = useState<Persisted>(loadPersisted);
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted)); } catch { /* ignore */ } }, [persisted]);
+  const [persisted, setPersistedRaw] = useState<Persisted>(() => normalize(loadLocal<Persisted>()));
+  const [storage, setStorage] = useState<StorageMode>('checking');
+  const remoteSaver = useRef(createRemoteSaver<Persisted>());
+  const hydrated = useRef(false);
+
+  /** All settings changes go through here so they get a timestamp. */
+  const setPersisted = useCallback((update: (p: Persisted) => Persisted) => {
+    setPersistedRaw((p) => ({ ...update(p), updatedAt: Date.now() }));
+  }, []);
+
+  // On start: if the server keeps settings, take whichever side changed most recently.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const available = await settingsStoreAvailable();
+      if (cancelled) return;
+      if (!available) { setStorage('browser'); hydrated.current = true; return; }
+      const remote = await loadRemote<Persisted>();
+      if (cancelled) return;
+      setPersistedRaw((local) => {
+        const chosen = pickNewer(local.updatedAt ? local : null, remote ? normalize(remote) : null) ?? local;
+        return chosen;
+      });
+      hydrated.current = true;
+      setStorage('server');
+    })();
+    const off = remoteSaver.current.onResult((ok) => setStorage(ok ? 'server' : 'server-error'));
+    return () => { cancelled = true; off(); };
+  }, []);
+
+  // Persist every change: browser always, server when available (after hydration, so a stale
+  // local copy never overwrites a newer server copy).
+  useEffect(() => {
+    saveLocal(persisted);
+    if (hydrated.current && (storage === 'server' || storage === 'server-error') && persisted.updatedAt) {
+      remoteSaver.current.save(persisted);
+    }
+  }, [persisted, storage]);
 
   const machine = MACHINES.find((m) => m.id === persisted.machineId) ?? MACHINES[0];
   const filament = FILAMENTS.find((f) => f.id === persisted.filamentId) ?? FILAMENTS[0];
@@ -230,6 +266,7 @@ export function App() {
         onOverride={setOverride}
         onResetOverride={resetOverride}
         onResetAll={() => setPersisted((p) => ({ ...p, overrides: {} }))}
+        storage={storage}
       />
 
       <main className="stage">

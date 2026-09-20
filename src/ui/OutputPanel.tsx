@@ -5,11 +5,19 @@ import { uploadGcode, getDetail, type FlashforgeConfig } from '../printer/flashf
 import { uploadToMoonraker } from '../printer/moonraker';
 import { relayAvailable, pageIsHttps } from '../printer/relay';
 
+export interface VerifiedPrinter {
+  at: string; // ISO time of the successful test
+  name: string;
+  firmware: string;
+}
+
 export interface PrinterConfig {
   kind: 'flashforge' | 'moonraker';
   ff: FlashforgeConfig;
   moonraker: { url: string; apiKey: string };
   leveling: boolean;
+  /** Set when "Test" last succeeded for the current ff settings. */
+  verified?: VerifiedPrinter | null;
 }
 
 export const defaultPrinterConfig = (): PrinterConfig => ({
@@ -70,13 +78,17 @@ export function OutputPanel(p: OutputPanelProps) {
     try {
       const d = await getDetail(p.printer.ff, Boolean(relay)) as { detail?: { status?: string; name?: string; firmwareVersion?: string } };
       const det = d.detail ?? {};
-      setStatus({ kind: 'ok', text: `Connected: ${det.name ?? 'printer'} ${det.firmwareVersion ?? ''} (${det.status ?? 'ok'})` });
+      const verified: VerifiedPrinter = { at: new Date().toISOString(), name: det.name ?? 'Flashforge printer', firmware: det.firmwareVersion ?? '' };
+      p.onPrinter({ ...p.printer, verified });
+      setStatus({ kind: 'ok', text: `Connected: ${verified.name} ${verified.firmware} (${det.status ?? 'ok'}). Printer saved for future prints.` });
     } catch (e) {
       setStatus({ kind: 'err', text: e instanceof Error ? e.message : String(e) });
     } finally { setBusy(false); }
   };
 
-  const setFF = (k: keyof FlashforgeConfig, v: string) => p.onPrinter({ ...p.printer, ff: { ...p.printer.ff, [k]: v } });
+  const setFF = (k: keyof FlashforgeConfig, v: string) =>
+    p.onPrinter({ ...p.printer, ff: { ...p.printer.ff, [k]: v }, verified: v === p.printer.ff[k] ? p.printer.verified : null });
+  const forget = () => p.onPrinter({ ...p.printer, ff: { host: '', serialNumber: '', checkCode: '' }, verified: null });
 
   return (
     <section className="panel-block">
@@ -103,6 +115,12 @@ export function OutputPanel(p: OutputPanelProps) {
         </div>
         {p.printer.kind === 'flashforge' ? (
           <>
+            {p.printer.verified ? (
+              <p className="status ok saved-printer">
+                <span>Saved printer: <b>{p.printer.verified.name}</b>{p.printer.verified.firmware ? ` · firmware ${p.printer.verified.firmware}` : ''} · verified {new Date(p.printer.verified.at).toLocaleString()}</span>
+                <button className="btn small ghost" onClick={forget}>Forget</button>
+              </p>
+            ) : null}
             <label className="field"><span>Printer IP</span><input value={p.printer.ff.host} placeholder="192.168.1.50" onChange={(e) => setFF('host', e.target.value)} /></label>
             <label className="field"><span>Serial number</span><input value={p.printer.ff.serialNumber} placeholder="SNADVA5M…" onChange={(e) => setFF('serialNumber', e.target.value)} /></label>
             <label className="field"><span>Check code</span><input value={p.printer.ff.checkCode} placeholder="Printer ID" onChange={(e) => setFF('checkCode', e.target.value)} /></label>

@@ -17,6 +17,7 @@ export interface SettingsPanelProps {
   onOverride: (key: keyof SliceSettings, value: unknown) => void;
   onResetOverride: (key: keyof SliceSettings) => void;
   onResetAll: () => void;
+  storage: 'checking' | 'server' | 'browser' | 'server-error';
 }
 
 export function SettingsPanel(p: SettingsPanelProps) {
@@ -61,6 +62,12 @@ export function SettingsPanel(p: SettingsPanelProps) {
           </button>
         )}
       </div>
+      <p className={`storage-note ${p.storage}`} title="Where your settings and saved printer are kept">
+        {p.storage === 'server' && 'Settings saved on this server and shared by every device that opens it.'}
+        {p.storage === 'browser' && 'Settings saved in this browser only.'}
+        {p.storage === 'server-error' && 'Could not save settings to the server; kept in this browser for now.'}
+        {p.storage === 'checking' && '…'}
+      </p>
       <div className="panel-scroll">
         {SETTINGS_TABS.filter((t) => f ? true : t.id === tab).map((t) => (
           <div key={t.id}>

@@ -6,3 +6,5 @@ services:
     restart: unless-stopped
     ports:
       - "8099:8099"
+    volumes:
+      - ./data:/data   # settings and saved printer

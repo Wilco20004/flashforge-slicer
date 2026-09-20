@@ -13,6 +13,10 @@ RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker-entrypoint.d/10-data-dir.sh /docker-entrypoint.d/10-data-dir.sh
+RUN chmod +x /docker-entrypoint.d/10-data-dir.sh && mkdir -p /data && chown nginx:nginx /data
 COPY --from=build /app/dist /usr/share/nginx/html
+# Settings store (Home Assistant mounts its persistent add-on storage here).
+VOLUME ["/data"]
 EXPOSE 8099
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -q -O /dev/null http://127.0.0.1:8099/ || exit 1

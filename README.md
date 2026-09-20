@@ -26,7 +26,7 @@ Run it as a static site, as a Docker container, or as a Home Assistant add-on.
   - Orca-compatible `HEADER_BLOCK`, 140×110 PNG thumbnail block (shown in the printer's file browser), `M73` progress, `;TYPE:` / `;LAYER_CHANGE` markers and a `CONFIG_BLOCK` with every setting
   - print-time estimate from a trapezoidal motion planner with junction slow-down; filament length / weight
 - **Preview**: 3D toolpath view coloured by feature type, layer slider (arrow keys work too), travel moves toggle.
-- **Profiles**: Adventurer 5M and 5M Pro with 0.25 / 0.4 / 0.6 / 0.8 mm nozzles; PLA, HS PLA, Silk PLA, PETG, ABS, ASA, TPU; quality presets from 0.08 mm to 0.56 mm. Any setting can be overridden; overrides are highlighted and persist in the browser.
+- **Profiles**: Adventurer 5M and 5M Pro with 0.25 / 0.4 / 0.6 / 0.8 mm nozzles; PLA, HS PLA, Silk PLA, PETG, ABS, ASA, TPU; quality presets from 0.08 mm to 0.56 mm. Any setting can be overridden; overrides are highlighted. Settings and the saved printer persist in the browser, and on the server when run as the Docker image / Home Assistant add-on so all your devices share them.
 - **Send to printer** (Docker / Home Assistant versions):
   - *Flashforge LAN API* (port 8898, firmware 2.6.6+): upload, or upload and start printing, with optional bed levelling — the same API Orca-Flashforge uses.
   - *Moonraker* for a 5M running the community Klipper mod.
@@ -48,8 +48,9 @@ docker compose up -d                 # http://<host>:8099
 docker build -t flashforge-slicer . && docker run -d -p 8099:8099 flashforge-slicer
 ```
 
-The image is nginx serving the static build (about 10 MB). It keeps no state:
-settings live in each browser's localStorage.
+The image is nginx serving the static build (about 10 MB). Settings and the saved
+printer are kept in `/data` (`./data` with the compose file) and shared by every
+device that opens the slicer.
 
 **Development / static hosting**
 

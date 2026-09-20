@@ -9,16 +9,31 @@
  * for private LAN addresses only, plus /relay-status to advertise the feature.
  */
 
-let probe: Promise<boolean> | null = null;
+export interface ServerFeatures {
+  /** /printer/<ip>/… relay to LAN printers. */
+  relay: boolean;
+  /** GET/PUT /settings.json persisted on the server. */
+  store: boolean;
+}
 
-/** True when the server hosting this page offers the /printer/ relay. Cached. */
-export function relayAvailable(): Promise<boolean> {
+let probe: Promise<ServerFeatures> | null = null;
+
+/** What the server hosting this page offers (Docker / Home Assistant add-on). Cached. */
+export function serverFeatures(): Promise<ServerFeatures> {
   if (!probe) {
     probe = fetch('relay-status', { cache: 'no-store' })
-      .then((r) => r.ok && r.headers.get('x-printer-relay') === '1')
-      .catch(() => false);
+      .then((r) => ({
+        relay: r.ok && r.headers.get('x-printer-relay') === '1',
+        store: r.ok && r.headers.get('x-settings-store') === '1',
+      }))
+      .catch(() => ({ relay: false, store: false }));
   }
   return probe;
+}
+
+/** True when the server hosting this page offers the /printer/ relay. */
+export function relayAvailable(): Promise<boolean> {
+  return serverFeatures().then((f) => f.relay);
 }
 
 /** Relay URL, relative to the page so it also works behind Home Assistant Ingress. */
