@@ -44,6 +44,7 @@ const ffCommon: Partial<SliceSettings> = {
   brimWidth: 5,
   brimGap: 0.1,
   supportEnabled: false,
+  supportType: 'tree',
   supportThresholdAngle: 30,
   supportSpacing: 2.5,
   supportZGap: 0.18,
@@ -52,6 +53,12 @@ const ffCommon: Partial<SliceSettings> = {
   supportInterfaceSpacing: 0.5,
   supportWalls: 0,
   supportMinArea: 2,
+  treeBranchAngle: 40,
+  treeBranchDiameter: 2,
+  treeTipDiameter: 1.2,
+  treeTipSpacing: 3,
+  treeMaxDiameter: 8,
+  treeDiameterAngle: 5,
 };
 
 function preset(id: string, name: string, nozzles: number[], s: Partial<SliceSettings>): ProcessProfile {

@@ -7,6 +7,7 @@ import {
 } from './polygons';
 import { parallelLines, sparseInfill } from './infill';
 import { computeBounds } from '../geometry/mesh';
+import { generateTreeSupport } from './treeSupport';
 
 export interface PlanProgress { (stage: string, fraction: number): void }
 
@@ -33,38 +34,44 @@ export function planLayers(positions: Float32Array, s: SliceSettings, progress?:
 
   const R = (i: number): Polys => (i >= 0 && i < layerCount ? regions[i] : []);
 
-  // ---- Supports (top-down accumulation) ----
+  // ---- Supports ----
   progress?.('Generating supports', 0);
-  const support: Polys[] = new Array(layerCount).fill(null).map(() => []);
-  const supportInterface: Polys[] = new Array(layerCount).fill(null).map(() => []);
+  let support: Polys[] = new Array(layerCount).fill(null).map(() => []);
+  let supportInterface: Polys[] = new Array(layerCount).fill(null).map(() => []);
+  const treeStyle = s.supportEnabled && s.supportType === 'tree';
   if (s.supportEnabled) {
+    // Overhang of each layer relative to the one below (slope flatter than the threshold angle).
     const overhang: Polys[] = new Array(layerCount);
     for (let i = 0; i < layerCount; i++) {
       if (i === 0) { overhang[i] = []; continue; }
       const thr = heights[i] / Math.tan((Math.max(1, s.supportThresholdAngle) * Math.PI) / 180);
       let oh = difference(R(i), offset(R(i - 1), thr));
-      // ignore slivers and tiny islands
       oh = open(oh, s.lineWidth * 0.5);
       oh = oh.filter((p) => polyArea(p) < 0 || polyArea(p) >= s.supportMinArea);
       overhang[i] = oh;
     }
     const gapLayers = Math.max(1, Math.round(s.supportZGap / s.layerHeight));
-    let acc: Polys = [];
-    for (let i = layerCount - 1; i >= 0; i--) {
-      const above = i + gapLayers < layerCount ? overhang[i + gapLayers] : [];
-      acc = difference(union(acc, above), offset(R(i), s.supportXYGap));
-      // don't print support in the bottom z-gap below the model either
-      acc = acc.filter((p) => polyArea(p) < 0 || polyArea(p) >= 0.5);
-      support[i] = acc;
-      if (!isEmpty(acc) && s.supportInterfaceLayers > 0) {
-        const window: Polys[] = [];
-        for (let k = 1; k <= s.supportInterfaceLayers; k++) {
-          const idx = i + gapLayers + k - 1;
-          if (idx < layerCount) window.push(overhang[idx]);
+    if (treeStyle) {
+      const tree = generateTreeSupport(R, heights.slice(0, layerCount), overhang, s, (f) => progress?.('Generating supports', f));
+      support = tree.branches;
+      supportInterface = tree.roof;
+    } else {
+      let acc: Polys = [];
+      for (let i = layerCount - 1; i >= 0; i--) {
+        const above = i + gapLayers < layerCount ? overhang[i + gapLayers] : [];
+        acc = difference(union(acc, above), offset(R(i), s.supportXYGap));
+        acc = acc.filter((p) => polyArea(p) < 0 || polyArea(p) >= 0.5);
+        support[i] = acc;
+        if (!isEmpty(acc) && s.supportInterfaceLayers > 0) {
+          const window: Polys[] = [];
+          for (let k = 1; k <= s.supportInterfaceLayers; k++) {
+            const idx = i + gapLayers + k - 1;
+            if (idx < layerCount) window.push(overhang[idx]);
+          }
+          supportInterface[i] = intersection(acc, unionAll(window));
         }
-        supportInterface[i] = intersection(acc, unionAll(window));
+        if (i % 10 === 0) progress?.('Generating supports', 1 - i / layerCount);
       }
-      if (i % 10 === 0) progress?.('Generating supports', 1 - i / layerCount);
     }
   }
 
@@ -135,19 +142,34 @@ export function planLayers(positions: Float32Array, s: SliceSettings, progress?:
     }
 
     // Supports
-    if (!isEmpty(support[i])) {
+    if (!isEmpty(support[i]) || !isEmpty(supportInterface[i])) {
       const iface = supportInterface[i];
-      const base = difference(support[i], iface);
-      if (s.supportWalls > 0) {
+      const base = treeStyle ? support[i] : difference(support[i], iface);
+      if (treeStyle) {
+        // Branches: up to two concentric walls, the remainder as sparse lines (thin branches are walls only).
+        const loops = Math.max(1, s.supportWalls || 2);
         let curW = offset(base, -w / 2);
-        for (let k = 0; k < s.supportWalls && !isEmpty(curW); k++) {
+        let k = 0;
+        for (; k < loops && !isEmpty(curW); k++) {
           for (const p of curW) addClosed(paths, 'support', p, w);
           curW = offset(curW, -w);
         }
+        const inner = offset(curW, w / 2 + w * 0.25);
+        for (const l of parallelLines(inner, s.supportSpacing, 0)) addOpen(paths, 'support', l, w);
+      } else {
+        if (s.supportWalls > 0) {
+          let curW = offset(base, -w / 2);
+          for (let k = 0; k < s.supportWalls && !isEmpty(curW); k++) {
+            for (const p of curW) addClosed(paths, 'support', p, w);
+            curW = offset(curW, -w);
+          }
+        }
+        const baseInner = s.supportWalls > 0 ? offset(base, -(s.supportWalls * w) + w * 0.25) : base;
+        for (const l of parallelLines(baseInner, s.supportSpacing, 0)) addOpen(paths, 'support', l, w);
       }
-      const baseInner = s.supportWalls > 0 ? offset(base, -(s.supportWalls * w) + w * 0.25) : base;
-      for (const l of parallelLines(baseInner, s.supportSpacing, 0)) addOpen(paths, 'support', l, w);
-      for (const l of parallelLines(iface, s.supportInterfaceSpacing, 90)) addOpen(paths, 'support-interface', l, w);
+      // Roof / interface: dense lines, alternating direction so the roof is a solid sheet
+      const ifaceAngle = treeStyle ? 90 * (i % 2) : 90;
+      for (const l of parallelLines(iface, s.supportInterfaceSpacing, ifaceAngle)) addOpen(paths, 'support-interface', l, w);
     }
 
     // Islands, nearest-first

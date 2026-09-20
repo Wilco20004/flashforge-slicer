@@ -64,7 +64,7 @@ describe('planLayers', () => {
     positions.set(slab.positions, pillar.positions.length);
     const noSup = planLayers(positions, settings({ supportEnabled: false }));
     expect(noSup.layers.some((l) => l.paths.some((p) => p.type === 'support'))).toBe(false);
-    const sup = planLayers(positions, settings({ supportEnabled: true }));
+    const sup = planLayers(positions, settings({ supportEnabled: true, supportType: 'normal' }));
     const supportLayers = sup.layers.filter((l) => l.paths.some((p) => p.type === 'support'));
     expect(supportLayers.length).toBeGreaterThan(15);
     expect(supportLayers[0].index).toBe(0);
@@ -79,6 +79,50 @@ describe('planLayers', () => {
     // the layer directly under the slab is bridge over support
     const under = sup.layers.find((l) => Math.abs(l.z - 5.2) < 1e-6)!;
     expect(under.paths.some((p) => p.type === 'bridge')).toBe(true);
+  });
+});
+
+describe('tree supports', () => {
+  const pillar = boxMesh(4, 4, 5);
+  const slab = boxMesh(20, 20, 2, 0, 0, 5);
+  const positions = new Float32Array(pillar.positions.length + slab.positions.length);
+  positions.set(pillar.positions);
+  positions.set(slab.positions, pillar.positions.length);
+  const { layers } = planLayers(positions, settings({ supportEnabled: true, supportType: 'tree' }));
+  const has = (i: number, t: string) => layers[i].paths.some((p) => p.type === t);
+
+  it('grows branches from the bed up to just below the roof', () => {
+    expect(has(0, 'support')).toBe(true);
+    expect(has(10, 'support')).toBe(true);
+    expect(has(21, 'support')).toBe(true);
+    // slab starts at layer 25 (z 5.2): roof occupies the 3 layers below the z gap
+    expect(has(24, 'support-interface')).toBe(true);
+    expect(has(23, 'support-interface')).toBe(true);
+    expect(has(22, 'support-interface')).toBe(true);
+    expect(has(26, 'support')).toBe(false);
+    expect(has(30, 'support-interface')).toBe(false);
+  });
+  it('keeps branches away from the model by the XY gap', () => {
+    for (const i of [2, 10, 20]) {
+      for (const p of layers[i].paths.filter((p) => p.type === 'support')) {
+        for (let k = 0; k < p.pts.length; k += 2) {
+          const inside = Math.abs(p.pts[k]) < 2.29 && Math.abs(p.pts[k + 1]) < 2.29;
+          expect(inside).toBe(false);
+        }
+      }
+    }
+  });
+  it('stays under the overhang footprint', () => {
+    for (const p of layers[5].paths.filter((p) => p.type === 'support')) {
+      for (let k = 0; k < p.pts.length; k += 2) {
+        expect(Math.abs(p.pts[k])).toBeLessThan(11.5);
+        expect(Math.abs(p.pts[k + 1])).toBeLessThan(11.5);
+      }
+    }
+  });
+  it('merges tips into fewer, thicker branches lower down', () => {
+    const loops = (i: number) => layers[i].paths.filter((p) => p.type === 'support' && p.closed).length;
+    expect(loops(21)).toBeGreaterThan(loops(2));
   });
 });
 

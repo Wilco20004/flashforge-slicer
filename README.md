@@ -8,13 +8,13 @@ engine runs in a Web Worker on your machine and nothing is uploaded anywhere.
 ## Features
 
 - **Input**: STL (binary/ASCII), 3MF (including components and multiple build items), OBJ. Drag-and-drop or file picker, several objects per plate.
-- **Placement**: move, rotate (X/Y/Z), scale, duplicate, auto-arrange; models always sit on the bed; out-of-bounds objects are flagged.
+- **Placement**: move, rotate (X/Y/Z), scale, duplicate; **auto-arrange** packs parts largest-first around the bed centre with clearance for skirt/brim, rotates a part 90° when that is the only way it fits and tells you which parts do not fit; models always sit on the bed; out-of-bounds objects are flagged.
 - **Slicing** (Clipper-based geometry engine):
   - walls (configurable loop count and order), top/bottom shell detection, bridge detection over air or support
   - sparse infill: grid, rectilinear, lines, triangles, concentric — with density and angle
   - tiny sparse regions filled solid, infill/wall overlap, elephant-foot compensation
   - skirt and brim
-  - automatic ("normal") supports with threshold angle, XY/Z gaps, dense interface layers
+  - automatic supports: **tree (organic)** branches that grow down from sampled tips, merge, avoid the model and land on the bed or the model, with a dense roof under the overhang; or classic grid supports — both with threshold angle, XY/Z gaps and interface layers
   - seam control: aligned, nearest, rear, random
 - **G-code for the Adventurer 5M**:
   - the exact start/end sequences and machine limits from the official OrcaSlicer Flashforge profiles (centre-origin bed −110…110 mm, 220 mm Z, Klipper flavour, relative extrusion)
@@ -47,7 +47,7 @@ once Pages is enabled for the repository (Settings → Pages → Source: *GitHub
 model file ──▶ TriangleMesh ──▶ (transform, merge) ──▶ Web Worker
                                                           │
    slice.ts     plane/triangle intersection → oriented segments → closed loops → Clipper polygons
-   engine.ts    supports · top/bottom shells · walls · infill · skirt/brim · path ordering (per layer)
+   engine.ts    supports (treeSupport.ts) · top/bottom shells · walls · infill · skirt/brim · path ordering (per layer)
    gcode.ts     speeds/accel · extrusion maths · retraction/Z-hop · fan · time estimate · header/thumbnail
                                                           │
                                         gcode + preview segments ◀─┘
@@ -62,7 +62,7 @@ model file ──▶ TriangleMesh ──▶ (transform, merge) ──▶ Web Wor
 
 ## Limitations / roadmap
 
-- Normal (grid) supports only — no tree supports, no support painting.
+- Tree supports use circular branch cross-sections on 2-D layers (no support painting, no "build plate only" mode yet); arrange works on bounding boxes, not exact outlines.
 - No gap fill for walls thinner than the wall count, no ironing, no arc fitting, no variable layer height.
 - Single extruder / single filament per print (the 5M has one extruder anyway).
 - LAN upload from a browser depends on the printer firmware's CORS behaviour (see above).

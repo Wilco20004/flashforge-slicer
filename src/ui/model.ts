@@ -89,34 +89,81 @@ export function worldBounds(o: PlateObject) {
   return computeBounds(worldPositions(o));
 }
 
-/** Simple grid arrangement of all objects around the bed centre. */
-export function arrangeObjects(objects: PlateObject[], gap = 8): PlateObject[] {
-  if (objects.length === 0) return objects;
-  const sizes = objects.map((o) => {
+export interface ArrangeOptions {
+  bedX: number;
+  bedY: number;
+  /** Minimum clearance between parts and to the bed edge (mm). */
+  gap?: number;
+  /** Try a 90° rotation when a part does not fit as-is. */
+  allowRotate?: boolean;
+}
+
+export interface ArrangeResult {
+  objects: PlateObject[];
+  /** Objects that could not be placed inside the bed. */
+  unplaced: PlateObject[];
+}
+
+interface Rect { x0: number; y0: number; x1: number; y1: number }
+
+/**
+ * Arrange all objects on the bed: largest footprint first, each placed at the free
+ * spot nearest the bed centre (grid search), keeping `gap` to other parts and to the
+ * edge. Parts that do not fit are left where they are and reported in `unplaced`.
+ */
+export function arrangeObjects(objects: PlateObject[], opts: ArrangeOptions): ArrangeResult {
+  const gap = opts.gap ?? 6;
+  const hx = opts.bedX / 2, hy = opts.bedY / 2;
+  const footprints = objects.map((o) => {
     const b = worldBounds(o);
-    return { w: b.max[0] - b.min[0], d: b.max[1] - b.min[1] };
+    return { o, w: b.max[0] - b.min[0], d: b.max[1] - b.min[1] };
   });
-  const cols = Math.ceil(Math.sqrt(objects.length));
-  const rows = Math.ceil(objects.length / cols);
-  const colW: number[] = new Array(cols).fill(0);
-  const rowD: number[] = new Array(rows).fill(0);
-  sizes.forEach((s, i) => {
-    colW[i % cols] = Math.max(colW[i % cols], s.w);
-    rowD[Math.floor(i / cols)] = Math.max(rowD[Math.floor(i / cols)], s.d);
-  });
-  const totalW = colW.reduce((a, b) => a + b, 0) + gap * (cols - 1);
-  const totalD = rowD.reduce((a, b) => a + b, 0) + gap * (rows - 1);
-  let y = totalD / 2;
-  const out = objects.map((o) => ({ ...o }));
-  for (let r = 0; r < rows; r++) {
-    let x = -totalW / 2;
-    for (let c = 0; c < cols; c++) {
-      const i = r * cols + c;
-      if (i >= out.length) break;
-      out[i].transform = { ...out[i].transform, x: x + colW[c] / 2, y: y - rowD[r] / 2 };
-      x += colW[c] + gap;
+  footprints.sort((a, b) => b.w * b.d - a.w * a.d);
+  const placed: Rect[] = [];
+  const out = new Map<string, PlateObject>();
+  const unplaced: PlateObject[] = [];
+  const step = 2; // mm grid for candidate centres
+
+  const fits = (cx: number, cy: number, w: number, d: number): boolean => {
+    const r: Rect = { x0: cx - w / 2, y0: cy - d / 2, x1: cx + w / 2, y1: cy + d / 2 };
+    if (r.x0 < -hx + gap / 2 || r.x1 > hx - gap / 2 || r.y0 < -hy + gap / 2 || r.y1 > hy - gap / 2) return false;
+    for (const p of placed) {
+      if (r.x0 < p.x1 + gap && r.x1 > p.x0 - gap && r.y0 < p.y1 + gap && r.y1 > p.y0 - gap) return false;
     }
-    y -= rowD[r] + gap;
+    return true;
+  };
+  const search = (w: number, d: number): [number, number] | null => {
+    // candidates ordered by distance from the centre
+    const maxR = Math.hypot(hx, hy);
+    for (let ring = 0; ring <= maxR; ring += step) {
+      const cands: [number, number][] = [];
+      if (ring === 0) cands.push([0, 0]);
+      else {
+        const n = Math.max(8, Math.round((2 * Math.PI * ring) / step));
+        for (let k = 0; k < n; k++) {
+          const a = (k / n) * Math.PI * 2;
+          cands.push([Math.round((ring * Math.cos(a)) / step) * step, Math.round((ring * Math.sin(a)) / step) * step]);
+        }
+      }
+      for (const [cx, cy] of cands) if (fits(cx, cy, w, d)) return [cx, cy];
+    }
+    return null;
+  };
+
+  for (const f of footprints) {
+    let pos = search(f.w, f.d);
+    let rotated = false;
+    if (!pos && opts.allowRotate !== false && Math.abs(f.w - f.d) > 0.5) {
+      pos = search(f.d, f.w);
+      rotated = Boolean(pos);
+    }
+    if (!pos) { unplaced.push(f.o); out.set(f.o.id, f.o); continue; }
+    const w = rotated ? f.d : f.w, d = rotated ? f.w : f.d;
+    placed.push({ x0: pos[0] - w / 2, y0: pos[1] - d / 2, x1: pos[0] + w / 2, y1: pos[1] + d / 2 });
+    out.set(f.o.id, {
+      ...f.o,
+      transform: { ...f.o.transform, x: pos[0], y: pos[1], rotZ: rotated ? (f.o.transform.rotZ + 90) % 360 : f.o.transform.rotZ },
+    });
   }
-  return out;
+  return { objects: objects.map((o) => out.get(o.id)!), unplaced };
 }

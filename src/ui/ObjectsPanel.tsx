@@ -55,9 +55,9 @@ export function ObjectsPanel(p: ObjectsPanelProps) {
           ))}
         </ul>
       )}
-      {p.objects.length > 1 && (
+      {p.objects.length > 0 && (
         <div className="row gap">
-          <button className="btn small ghost" onClick={p.onArrange}>Arrange all</button>
+          <button className="btn small ghost" onClick={p.onArrange} title="Pack all parts around the bed centre">Arrange all</button>
           <button className="btn small ghost" onClick={p.onClear}>Clear plate</button>
         </div>
       )}

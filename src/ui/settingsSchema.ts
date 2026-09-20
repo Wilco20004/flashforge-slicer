@@ -100,6 +100,7 @@ export const SETTINGS_TABS: Tab[] = [
     id: 'support', title: 'Support & adhesion', groups: [
       { title: 'Support', fields: [
         b('supportEnabled', 'Enable support'),
+        sel('supportType', 'Support type', [{ value: 'tree', label: 'Tree (organic)' }, { value: 'normal', label: 'Normal (grid)' }]),
         n('supportThresholdAngle', 'Threshold angle', '°', 1, 1, 89, 'Overhangs flatter than this angle (from horizontal) get support'),
         n('supportSpacing', 'Base line spacing', 'mm', 0.1, 0.5, 10),
         n('supportZGap', 'Top Z distance', 'mm', 0.01, 0, 1),
@@ -108,6 +109,14 @@ export const SETTINGS_TABS: Tab[] = [
         n('supportInterfaceSpacing', 'Interface spacing', 'mm', 0.05, 0.1, 5),
         n('supportWalls', 'Support walls', '', 1, 0, 3),
         n('supportMinArea', 'Min. overhang area', 'mm²', 0.5, 0, 100),
+      ] },
+      { title: 'Tree support', fields: [
+        n('treeBranchAngle', 'Branch angle', '°', 5, 5, 75, 'How far a branch may lean from vertical per layer'),
+        n('treeBranchDiameter', 'Branch diameter', 'mm', 0.5, 1, 20),
+        n('treeTipDiameter', 'Tip diameter', 'mm', 0.1, 0.6, 5),
+        n('treeTipSpacing', 'Tip spacing', 'mm', 0.5, 1, 15, 'Distance between support tips under an overhang'),
+        n('treeMaxDiameter', 'Max branch diameter', 'mm', 1, 2, 40),
+        n('treeDiameterAngle', 'Branch diameter angle', '°', 1, 0, 30, 'Thickening of branches toward the base'),
       ] },
       { title: 'Skirt', fields: [
         n('skirtLoops', 'Skirt loops', '', 1, 0, 10),

@@ -7,6 +7,7 @@ export type InfillPattern = 'rectilinear' | 'grid' | 'triangles' | 'concentric' 
 export type SeamPosition = 'nearest' | 'aligned' | 'rear' | 'random';
 export type WallOrder = 'inner-outer' | 'outer-inner';
 export type BrimType = 'none' | 'outer';
+export type SupportType = 'normal' | 'tree';
 
 export interface SliceSettings {
   // ---- Machine ----
@@ -114,6 +115,7 @@ export interface SliceSettings {
 
   // ---- Process: support ----
   supportEnabled: boolean;
+  supportType: SupportType;
   supportThresholdAngle: number;
   supportSpacing: number;
   supportZGap: number;
@@ -122,6 +124,14 @@ export interface SliceSettings {
   supportInterfaceSpacing: number;
   supportWalls: number;
   supportMinArea: number;
+  /** Tree support: max lean angle of a branch from vertical (°). */
+  treeBranchAngle: number;
+  treeBranchDiameter: number;
+  treeTipDiameter: number;
+  treeTipSpacing: number;
+  treeMaxDiameter: number;
+  /** Tree support: how fast branches thicken toward the base (°). */
+  treeDiameterAngle: number;
 }
 
 export const DEFAULT_SETTINGS: SliceSettings = {
@@ -215,6 +225,7 @@ export const DEFAULT_SETTINGS: SliceSettings = {
   brimGap: 0.1,
 
   supportEnabled: false,
+  supportType: 'normal',
   supportThresholdAngle: 30,
   supportSpacing: 2.5,
   supportZGap: 0.18,
@@ -223,4 +234,10 @@ export const DEFAULT_SETTINGS: SliceSettings = {
   supportInterfaceSpacing: 0.5,
   supportWalls: 0,
   supportMinArea: 2,
+  treeBranchAngle: 40,
+  treeBranchDiameter: 2,
+  treeTipDiameter: 1.2,
+  treeTipSpacing: 3,
+  treeMaxDiameter: 8,
+  treeDiameterAngle: 5,
 };

@@ -73,6 +73,16 @@ export function App() {
     return s;
   }, [objects, settings.bedSizeX, settings.bedSizeY, settings.maxZ]);
 
+  /** Arrange with the current bed and adhesion settings; warns when parts don't fit. */
+  const arrange = useCallback((list: PlateObject[]): PlateObject[] => {
+    const adhesion = settings.brimType === 'outer' ? settings.brimWidth * 2 + 2 : settings.skirtLoops > 0 ? settings.skirtDistance + settings.skirtLoops * settings.lineWidth + 2 : 0;
+    const res = arrangeObjects(list, { bedX: settings.bedSizeX, bedY: settings.bedSizeY, gap: Math.max(6, adhesion) });
+    if (res.unplaced.length) {
+      setError(`${res.unplaced.length} object${res.unplaced.length > 1 ? 's' : ''} did not fit on the bed: ${res.unplaced.map((o) => o.name).join(', ')}`);
+    }
+    return res.objects;
+  }, [settings.bedSizeX, settings.bedSizeY, settings.brimType, settings.brimWidth, settings.skirtLoops, settings.skirtDistance, settings.lineWidth]);
+
   const addFiles = useCallback(async (files: FileList | File[]) => {
     setError(null);
     const added: PlateObject[] = [];
@@ -90,16 +100,15 @@ export function App() {
     if (!added.length) return;
     setObjects((prev) => {
       const next = [...prev, ...added];
-      const arranged = next.length > 1 ? arrangeObjects(next) : next;
-      return arranged;
+      return next.length > 1 ? arrange(next) : next;
     });
     setSelectedId(added[added.length - 1].id);
     setMode('prepare');
-  }, []);
+  }, [arrange]);
 
   const addSample = () => {
     const o = createPlateObject(sampleMesh());
-    setObjects((prev) => (prev.length ? arrangeObjects([...prev, o]) : [o]));
+    setObjects((prev) => (prev.length ? arrange([...prev, o]) : [o]));
     setSelectedId(o.id);
     setMode('prepare');
   };
@@ -116,7 +125,7 @@ export function App() {
     if (!src) return;
     const copy = createPlateObject({ ...src.mesh, name: src.mesh.name });
     copy.transform = { ...src.transform, x: src.transform.x + 10, y: src.transform.y + 10 };
-    setObjects((prev) => arrangeObjects([...prev, copy]));
+    setObjects((prev) => arrange([...prev, copy]));
     setSelectedId(copy.id);
   };
 
@@ -265,7 +274,7 @@ export function App() {
         <ObjectsPanel
           objects={objects} selectedId={selectedId} outOfBounds={outOfBounds}
           onSelect={setSelectedId} onRemove={removeObject} onDuplicate={duplicateObject}
-          onTransform={updateTransform} onArrange={() => setObjects((p) => arrangeObjects(p))}
+          onTransform={updateTransform} onArrange={() => { setError(null); setObjects((p) => arrange(p)); }}
           onClear={() => { setObjects([]); setSelectedId(null); }}
           onAddFiles={() => fileInput.current?.click()} onAddSample={addSample}
         />
