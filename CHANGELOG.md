@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.3
+
+- **The tab row ran off the side of the page on a phone.** The Filament tab
+  carried the spool's id next to its colour and the Monitor tab carries the
+  printer's status, and between them the last tab was pushed past the edge with
+  no way to scroll to it. The Filament tab now shows only the spool's colour —
+  the id was never the useful part at a glance — and the strip shrinks and
+  scrolls on its own instead of widening the page. Measured at 320, 360 and
+  412 px with the longest status the chip can show: nothing overflows the page
+  at any of them.
+- The title block could also push the page sideways at 320 px, ellipsis on the
+  subtitle notwithstanding.
+
 ## 0.7.2
 
 - **Open model and Slice plate now belong to the Prepare tab.** They said nothing

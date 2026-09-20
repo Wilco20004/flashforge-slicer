@@ -363,7 +363,7 @@ export function App() {
           <button className={mode === 'prepare' ? 'tab active' : 'tab'} onClick={() => setMode('prepare')}>Prepare</button>
           <button className={mode === 'preview' ? 'tab active' : 'tab'} disabled={!result} onClick={() => setMode('preview')}>Preview</button>
           <button className={mode === 'filament' ? 'tab active' : 'tab'} onClick={() => setMode('filament')} title="Spools, temperatures and labels">
-            Filament{spool ? <span className="live-chip"><i className="swatch tiny" style={{ background: spool.color }} />{spool.id}</span> : null}
+            Filament{spool ? <i className="swatch tiny" style={{ background: spool.color }} title={spoolName(spool)} /> : null}
           </button>
           <button className={mode === 'monitor' ? 'tab active' : 'tab'} disabled={!printerConfigured} title={printerConfigured ? 'Live printer status and camera' : 'Set up the printer under Send to printer first'} onClick={() => setMode('monitor')}>
             Monitor{live ? <span className={`live-chip ${isPrintingStatus(live.status) ? 'live' : ''}`}>{printerPct !== null ? `${printerPct}%` : statusLabel(live.status)}</span> : null}
