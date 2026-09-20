@@ -304,3 +304,90 @@ describe('infill connection', () => {
     expect(travel / ext).toBeLessThan(0.25);
   });
 });
+
+describe('gap fill', () => {
+  /** A wedge tapering to a point: near the tip no further wall loop fits. */
+  const wedge = (len: number, thick: number, h: number) => {
+    const t: number[] = [];
+    const quad = (a: number[], b: number[], c: number[], d: number[]) => t.push(...a, ...b, ...c, ...a, ...c, ...d);
+    const P: [number, number][] = [[-len / 2, -thick / 2], [len / 2, 0], [-len / 2, thick / 2]];
+    for (let i = 0; i < 3; i++) {
+      const j = (i + 1) % 3;
+      quad([P[i][0], P[i][1], 0], [P[j][0], P[j][1], 0], [P[j][0], P[j][1], h], [P[i][0], P[i][1], h]);
+    }
+    t.push(P[0][0], P[0][1], h, P[1][0], P[1][1], h, P[2][0], P[2][1], h);
+    t.push(P[0][0], P[0][1], 0, P[2][0], P[2][1], 0, P[1][0], P[1][1], 0);
+    return new Float32Array(t);
+  };
+  const gapPaths = (o: Partial<SliceSettings> = {}) =>
+    planLayers(wedge(30, 3, 4), settings(o)).layers.flatMap((l) => l.paths).filter((p) => p.type === 'gap-fill');
+
+  it('fills the sliver where another wall loop no longer fits', () => {
+    expect(gapPaths().length).toBeGreaterThan(0);
+  });
+
+  it('can be turned off', () => {
+    expect(gapPaths({ gapFillEnabled: false }).length).toBe(0);
+  });
+
+  it('extrudes no wider than a line and stays inside the part', () => {
+    const paths = gapPaths();
+    for (const p of paths) {
+      expect(p.width).toBeGreaterThan(0);
+      expect(p.width).toBeLessThanOrEqual(0.42 + 1e-9);
+      for (let i = 0; i < p.pts.length; i += 2) {
+        const x = p.pts[i], y = p.pts[i + 1];
+        // inside the triangle (-15,±1.5) - (15,0), with a tolerance for the offset
+        expect(x).toBeGreaterThanOrEqual(-15.1);
+        expect(x).toBeLessThanOrEqual(15.1);
+        const halfAt = 1.5 * (1 - (x + 15) / 30);
+        expect(Math.abs(y)).toBeLessThanOrEqual(halfAt + 0.1);
+      }
+    }
+  });
+
+  it('leaves a part whose walls fit alone', () => {
+    const cube = boxMesh(20, 20, 2);
+    const gaps = planLayers(cube.positions, settings()).layers.flatMap((l) => l.paths).filter((p) => p.type === 'gap-fill');
+    expect(gaps.length).toBe(0);
+  });
+});
+
+describe('ironing', () => {
+  const top = (o: Partial<SliceSettings> = {}) => {
+    const cube = boxMesh(30, 30, 3);
+    const { layers } = planLayers(cube.positions, settings(o));
+    return { layers, iron: layers.flatMap((l) => l.paths).filter((p) => p.type === 'ironing') };
+  };
+
+  it('is off unless asked for', () => {
+    expect(top().iron.length).toBe(0);
+  });
+
+  it('sweeps the exposed top surface in one continuous pass', () => {
+    const { iron } = top({ ironingEnabled: true });
+    expect(iron.length).toBeGreaterThan(0);
+    for (const p of iron) {
+      expect(p.width).toBeCloseTo(0.1, 6);
+      expect(p.flow).toBeCloseTo(0.1, 6);
+      for (let i = 0; i < p.pts.length; i += 2) {
+        expect(Math.abs(p.pts[i])).toBeLessThanOrEqual(15.01);
+        expect(Math.abs(p.pts[i + 1])).toBeLessThanOrEqual(15.01);
+      }
+    }
+  });
+
+  it('lays down a film, not a bead', () => {
+    const s = settings({ ironingEnabled: true });
+    const { layers } = planLayers(boxMesh(30, 30, 3).positions, s);
+    const { gcode } = generateGcode(layers, s);
+    const lines = gcode.split('\n');
+    const at = lines.findIndex((l) => l.includes(';TYPE:Ironing'));
+    expect(at).toBeGreaterThan(0);
+    const move = lines.slice(at).find((l) => /^G1 X[-\d.]+ Y[-\d.]+ E[\d.]+/.test(l))!;
+    const [, e] = /E([\d.]+)/.exec(move)!;
+    // a full 0.42 x 0.2 line is about 0.0126 mm of filament per mm of travel
+    expect(Number(e) / 28).toBeLessThan(0.002);
+    expect(Number(e)).toBeGreaterThan(0);
+  });
+});

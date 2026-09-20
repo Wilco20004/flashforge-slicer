@@ -2,7 +2,7 @@ import type { SliceSettings } from './settings';
 import { PATH_TYPES, PATH_TYPE_LABEL, type LayerPlan, type PathType, type PrintPath } from './plan';
 
 export const SLICER_NAME = 'Flashforge Slicer';
-export const SLICER_VERSION = '0.4.0';
+export const SLICER_VERSION = '0.5.0';
 
 export interface GcodeStats {
   printTimeSec: number;
@@ -197,6 +197,8 @@ export function generateGcode(layers: LayerPlan[], s: SliceSettings, opts: Gcode
         case 'top-surface': v = s.speedTopSurface; break;
         case 'bottom-surface': v = s.speedSolidInfill; break;
         case 'bridge': v = s.speedBridge; break;
+        case 'gap-fill': v = Math.min(s.speedSolidInfill, 150); break;
+        case 'ironing': v = s.ironingSpeed; break;
         case 'support': v = s.speedSupport; break;
         case 'support-interface': v = s.speedSupportInterface; break;
         default: v = s.speedFirstLayer;
@@ -209,8 +211,8 @@ export function generateGcode(layers: LayerPlan[], s: SliceSettings, opts: Gcode
     switch (p.type) {
       case 'outer-wall': return s.accelOuterWall;
       case 'inner-wall': return s.accelInnerWall;
-      case 'top-surface': return s.accelTopSurface;
-      case 'sparse-infill': case 'solid-infill': case 'bottom-surface': case 'bridge': return s.accelInfill;
+      case 'top-surface': case 'ironing': return s.accelTopSurface;
+      case 'sparse-infill': case 'solid-infill': case 'bottom-surface': case 'bridge': case 'gap-fill': return s.accelInfill;
       default: return s.accelDefault;
     }
   };
@@ -423,8 +425,11 @@ export function generateGcode(layers: LayerPlan[], s: SliceSettings, opts: Gcode
       unretract();
       if (p.type !== lastType) { out.push(`;TYPE:${PATH_TYPE_LABEL[p.type]}`); lastType = p.type; }
       if (p.width !== lastWidth) { out.push(`;WIDTH:${F(p.width)}`); lastWidth = p.width; }
-      const flow = p.type === 'bridge' ? 1.0 : 1.0;
-      const ePerMm = extrusionPerMm(p.width, layer.height, flow);
+      // Ironing lays down a film rather than a bead, so it is measured as a
+      // flat cross-section instead of a rounded rectangle.
+      const ePerMm = p.type === 'ironing'
+        ? ((p.width * layer.height * (p.flow ?? 1)) / filamentArea) * s.flowRatio
+        : extrusionPerMm(p.width, layer.height, p.flow ?? 1);
       let v = capVolumetric(speedFor(p, li), p.width, layer.height, s.maxVolumetricSpeed);
       v = Math.max(s.minSpeed, v * factor);
       setAccel(accelFor(p, li));
@@ -505,7 +510,7 @@ export function generateGcode(layers: LayerPlan[], s: SliceSettings, opts: Gcode
 }
 
 function isInfill(t: PathType): boolean {
-  return t === 'sparse-infill' || t === 'solid-infill' || t === 'top-surface' || t === 'bottom-surface' || t === 'bridge' || t === 'support' || t === 'support-interface';
+  return t === 'sparse-infill' || t === 'solid-infill' || t === 'top-surface' || t === 'bottom-surface' || t === 'bridge' || t === 'gap-fill' || t === 'support' || t === 'support-interface';
 }
 
 function capVolumetric(speed: number, width: number, height: number, maxVol: number): number {

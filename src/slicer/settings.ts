@@ -80,6 +80,17 @@ export interface SliceSettings {
   infillWallOverlap: number;
   /** Sparse areas smaller than this (mm²) are filled solid. */
   minSparseInfillArea: number;
+  /** Fill the slivers left between walls that are too narrow for another loop. */
+  gapFillEnabled: boolean;
+  /** Ignore gaps smaller than this (mm²). */
+  gapFillMinArea: number;
+  /** Sweep the topmost surfaces again with a barely extruding pass to smooth them. */
+  ironingEnabled: boolean;
+  /** Distance between ironing passes (mm). */
+  ironingSpacing: number;
+  /** Ironing extrusion as a fraction of a full layer's thickness (0-1). */
+  ironingFlow: number;
+  ironingSpeed: number;
 
   // ---- Process: infill ----
   infillDensity: number; // percent
@@ -195,6 +206,12 @@ export const DEFAULT_SETTINGS: SliceSettings = {
   resolution: 0.012,
   infillWallOverlap: 0.25,
   minSparseInfillArea: 15,
+  gapFillEnabled: true,
+  gapFillMinArea: 0.05,
+  ironingEnabled: false,
+  ironingSpacing: 0.1,
+  ironingFlow: 0.1,
+  ironingSpeed: 30,
 
   infillDensity: 15,
   infillPattern: 'grid',

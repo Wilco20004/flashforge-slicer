@@ -43,6 +43,12 @@ export const SETTINGS_TABS: Tab[] = [
         n('elephantFootCompensation', 'Elephant foot compensation', 'mm', 0.01, 0, 1),
         n('resolution', 'Resolution', 'mm', 0.001, 0, 0.2, 'Contour simplification tolerance'),
       ] },
+      { title: 'Ironing', fields: [
+        b('ironingEnabled', 'Iron top surfaces', 'A second, barely extruding pass that smooths the top; it adds print time'),
+        n('ironingSpacing', 'Ironing spacing', 'mm', 0.01, 0.05, 0.4),
+        n('ironingFlow', 'Ironing flow', '× layer', 0.01, 0, 0.5),
+        n('ironingSpeed', 'Ironing speed', 'mm/s', 1, 5, 200),
+      ] },
     ],
   },
   {
@@ -64,6 +70,10 @@ export const SETTINGS_TABS: Tab[] = [
         n('infillAngle', 'Infill direction', '°', 1, 0, 359),
         n('infillWallOverlap', 'Infill/wall overlap', '× line width', 0.05, 0, 1),
         n('minSparseInfillArea', 'Min. sparse infill area', 'mm²', 1, 0, 500, 'Smaller regions are filled solid'),
+      ] },
+      { title: 'Gap fill', fields: [
+        b('gapFillEnabled', 'Fill gaps between walls', 'Fills slivers too narrow for another wall loop'),
+        n('gapFillMinArea', 'Min. gap area', 'mm²', 0.01, 0, 5),
       ] },
     ],
   },

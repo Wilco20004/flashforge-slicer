@@ -6,6 +6,7 @@ import {
   toMm, type Polys, type Poly,
 } from './polygons';
 import { parallelLines, sparseInfill, connectLines } from './infill';
+import { gapFillPaths } from './gapFill';
 import { computeBounds } from '../geometry/mesh';
 import { generateTreeSupport } from './treeSupport';
 
@@ -231,6 +232,18 @@ export function planLayers(positions: Float32Array, s: SliceSettings, progress?:
       const internalSolid = difference(rest1, bottomPart);
 
       const infillPaths: PrintPath[] = [];
+      // Gap fill: whatever neither a wall band nor the infill area will cover,
+      // typically where a feature is too narrow for one more wall loop.
+      if (s.gapFillEnabled && walls.length) {
+        const bands = walls.map((loops, k) => {
+          const ww = k === 0 ? wOuter : w;
+          return difference(offset(loops, ww / 2), offset(loops, -ww / 2));
+        });
+        const gaps = difference(island, unionAll([...bands, innerArea]));
+        for (const g of gapFillPaths(gaps, w, s.gapFillMinArea)) {
+          infillPaths.push({ type: 'gap-fill', pts: g.pts, closed: g.closed, width: g.width });
+        }
+      }
       // Solid areas are laid down as continuous zigzags: without this every line
       // is a separate path, and the travel + retraction between them costs far
       // more than the printing does.
@@ -238,6 +251,14 @@ export function planLayers(positions: Float32Array, s: SliceSettings, progress?:
       for (const l of solidRuns(internalSolid)) infillPaths.push(makeOpen('solid-infill', l, w));
       for (const l of solidRuns(bottomPart)) infillPaths.push(makeOpen(first ? 'bottom-surface' : 'bridge', l, w));
       for (const l of solidRuns(topPart)) infillPaths.push(makeOpen('top-surface', l, w));
+      if (s.ironingEnabled && s.ironingSpacing > 0 && !isEmpty(topPart)) {
+        const passes = connectLines(parallelLines(topPart, s.ironingSpacing, solidAngle + 45), topPart, s.ironingSpacing * 3);
+        for (const l of passes) {
+          const path = makeOpen('ironing', l, s.ironingSpacing);
+          path.flow = s.ironingFlow;
+          infillPaths.push(path);
+        }
+      }
       const sp = sparseInfill(sparseArea, s.infillPattern, w, s.infillDensity / 100, s.infillAngle, i);
       for (const l of sp.open) infillPaths.push(makeOpen('sparse-infill', l, w));
       for (const p of sp.closed) infillPaths.push(makeClosed('sparse-infill', p, w));

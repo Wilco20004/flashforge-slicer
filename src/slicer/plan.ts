@@ -8,6 +8,8 @@ export type PathType =
   | 'top-surface'
   | 'bottom-surface'
   | 'bridge'
+  | 'gap-fill'
+  | 'ironing'
   | 'skirt'
   | 'brim'
   | 'support'
@@ -16,7 +18,7 @@ export type PathType =
 
 export const PATH_TYPES: PathType[] = [
   'outer-wall', 'inner-wall', 'sparse-infill', 'solid-infill', 'top-surface', 'bottom-surface',
-  'bridge', 'skirt', 'brim', 'support', 'support-interface', 'travel',
+  'bridge', 'skirt', 'brim', 'support', 'support-interface', 'travel', 'gap-fill', 'ironing',
 ];
 
 export const PATH_TYPE_LABEL: Record<PathType, string> = {
@@ -27,6 +29,8 @@ export const PATH_TYPE_LABEL: Record<PathType, string> = {
   'top-surface': 'Top surface',
   'bottom-surface': 'Bottom surface',
   bridge: 'Bridge',
+  'gap-fill': 'Gap infill',
+  ironing: 'Ironing',
   skirt: 'Skirt',
   brim: 'Brim',
   support: 'Support',
@@ -42,6 +46,8 @@ export const PATH_TYPE_COLOR: Record<PathType, string> = {
   'top-surface': '#ff3b6b',
   'bottom-surface': '#3fb0ff',
   bridge: '#4fd2c9',
+  'gap-fill': '#ffa9d4',
+  ironing: '#e8f4ff',
   skirt: '#6bff8d',
   brim: '#6bff8d',
   support: '#9aa4b1',
@@ -56,6 +62,8 @@ export interface PrintPath {
   closed: boolean;
   /** Extrusion width (mm). */
   width: number;
+  /** Extrusion multiplier for passes that deliberately under-extrude (ironing). */
+  flow?: number;
 }
 
 export interface LayerPlan {

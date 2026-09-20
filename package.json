@@ -1,7 +1,7 @@
 {
   "name": "flashforge-slicer",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "MIT",
   "repository": "github:wilco20004/flashforge-slicer",
   "type": "module",

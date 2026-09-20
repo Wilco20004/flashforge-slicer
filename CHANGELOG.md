@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0
+
+- **Gap fill.** Where a feature is too narrow for another wall loop but too wide
+  to ignore, the area was simply left empty: tapering ribs, the tips of wedges
+  and the join between curved walls came out hollow. Each leftover sliver is now
+  reduced to its centreline, by eroding it until it collapses, and printed once
+  at the sliver's own width. On a 1x4 gridfinity-style test part this adds 25
+  seconds and no measurable filament. Switch it off under Strength.
+- **Ironing.** An optional second pass over the topmost surfaces that lays down a
+  film rather than a bead, smoothing the finish. Off by default because it is
+  slow: spacing, flow and speed are under Quality.
+- Both stages reuse the connected-path work from 0.4.0, so ironing is a single
+  continuous sweep rather than thousands of separate lines.
+
 ## 0.4.0
 
 - **Prints are no longer dominated by travel.** Infill was emitted one clipped
