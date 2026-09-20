@@ -154,8 +154,41 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 4px; }
   .app { grid-template-columns: 300px 1fr 280px; }
 }
 @media (max-width: 860px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto 55vh auto auto; grid-template-areas: "top" "stage" "right" "left"; overflow: auto; }
+  html, body, #root { height: auto; min-height: 100%; }
   body { overflow: auto; }
-  .panel.settings, .panel.right { border: 0; border-top: 1px solid var(--border); max-height: none; }
-  .panel-scroll { max-height: 60vh; }
+  .app {
+    height: auto; min-height: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 58vh auto auto;
+    grid-template-areas: "top" "stage" "right" "left";
+  }
+  .topbar {
+    flex-wrap: wrap; height: auto; padding: 10px 12px; gap: 10px;
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  }
+  .brand { flex: 1 1 100%; min-width: 0; }
+  .brand strong { font-size: 14px; }
+  .brand small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+  .modes { flex: 0 0 auto; }
+  .actions { flex: 1 1 auto; justify-content: flex-end; }
+  .actions .btn { padding: 7px 10px; }
+  .stage { min-height: 320px; }
+  .panel, .panel.settings, .panel.right {
+    overflow: visible; height: auto; min-height: 0;
+    border: 0; border-top: 1px solid var(--border);
+  }
+  .panel-scroll { max-height: none; overflow: visible; }
+  .settings .tabs { flex-wrap: wrap; }
+  .layer-controls { left: 8px; right: 8px; bottom: 8px; padding: 8px 10px; }
+  .legend { display: none; }
+  .slider { flex-wrap: wrap; gap: 6px 12px; }
+  .slider input { flex: 1 1 100%; }
+  .overlay.empty { font-size: 14px; padding: 0 16px; text-align: center; }
+  .field select { width: 150px; }
+  .panel-section .field select { width: min(210px, 60vw); }
+  .printer .field input { width: 150px; }
+  .grid2 .field input[type=number] { width: 70px; }
+}
+@media (max-width: 480px) {
+  .grid2 { grid-template-columns: 1fr; }
 }
