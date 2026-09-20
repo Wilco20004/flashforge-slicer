@@ -123,10 +123,80 @@ export function clipLines(lines: Polys, region: Polys): Polys {
   return Clipper.OpenPathsFromPolyTree(tree);
 }
 
+/**
+ * Simplify closed polygons with Douglas-Peucker so that no removed vertex is
+ * farther than `toleranceMm` from the simplified outline. (Clipper's
+ * CleanPolygons merges greedily and lets the error accumulate along curves.)
+ */
 export function simplify(polys: Polys, toleranceMm: number): Polys {
   if (isEmpty(polys)) return [];
-  const cleaned = Clipper.CleanPolygons(polys, toInt(toleranceMm));
-  return cleaned.filter((p) => p.length >= 3);
+  const tol = toInt(toleranceMm);
+  const out: Polys = [];
+  for (const p of polys) {
+    const q = simplifyClosed(p, tol);
+    if (q.length >= 3 && Math.abs(Clipper.Area(q)) > 0) out.push(q);
+  }
+  return out;
+}
+
+function simplifyClosed(poly: Poly, tol: number): Poly {
+  // Drop duplicate / near-duplicate consecutive points first.
+  const pts: Poly = [];
+  for (const q of poly) {
+    const last = pts[pts.length - 1];
+    if (!last || Math.hypot(q.X - last.X, q.Y - last.Y) > tol) pts.push(q);
+  }
+  while (pts.length > 1 && Math.hypot(pts[0].X - pts[pts.length - 1].X, pts[0].Y - pts[pts.length - 1].Y) <= tol) pts.pop();
+  if (pts.length < 4 || tol <= 0) return pts;
+  // Anchor the closed loop at two far-apart vertices and simplify the two open chains.
+  let a = 0;
+  let far = -1, b = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const dd = (pts[i].X - pts[a].X) ** 2 + (pts[i].Y - pts[a].Y) ** 2;
+    if (dd > far) { far = dd; b = i; }
+  }
+  const keep = new Uint8Array(pts.length);
+  keep[a] = 1; keep[b] = 1;
+  rdp(pts, 0, b, tol, keep);
+  rdpWrap(pts, b, tol, keep);
+  const res: Poly = [];
+  for (let i = 0; i < pts.length; i++) if (keep[i]) res.push(pts[i]);
+  return res;
+}
+
+function distToSegSq(p: Pt, a: Pt, b: Pt): number {
+  const dx = b.X - a.X, dy = b.Y - a.Y;
+  const l2 = dx * dx + dy * dy;
+  let t = l2 > 0 ? ((p.X - a.X) * dx + (p.Y - a.Y) * dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const px = a.X + t * dx - p.X, py = a.Y + t * dy - p.Y;
+  return px * px + py * py;
+}
+
+/** Iterative Douglas-Peucker over pts[i..j] (both ends kept). */
+function rdp(pts: Poly, i: number, j: number, tol: number, keep: Uint8Array): void {
+  const stack = [i, j];
+  const tol2 = tol * tol;
+  while (stack.length) {
+    const e = stack.pop()!, s = stack.pop()!;
+    if (e - s < 2) continue;
+    let maxD = -1, idx = -1;
+    for (let k = s + 1; k < e; k++) {
+      const d = distToSegSq(pts[k], pts[s], pts[e]);
+      if (d > maxD) { maxD = d; idx = k; }
+    }
+    if (maxD > tol2) { keep[idx] = 1; stack.push(s, idx, idx, e); }
+  }
+}
+
+/** Douglas-Peucker over the chain pts[b..n-1] closed back to pts[0]. */
+function rdpWrap(pts: Poly, b: number, tol: number, keep: Uint8Array): void {
+  const chain: Poly = pts.slice(b);
+  chain.push(pts[0]);
+  const k2 = new Uint8Array(chain.length);
+  k2[0] = 1; k2[chain.length - 1] = 1;
+  rdp(chain, 0, chain.length - 1, tol, k2);
+  for (let i = 1; i < chain.length - 1; i++) if (k2[i]) keep[b + i] = 1;
 }
 
 /** Split a set of polygons into islands: each outer with its holes. */

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { sliceMesh, layerHeights } from '../src/slicer/slice';
-import { area, polyArea } from '../src/slicer/polygons';
+import { area, polyArea, simplify, pt, toMm } from '../src/slicer/polygons';
 import { boxMesh, tubeMesh } from './fixtures';
 import { parseSTL, toBinarySTL } from '../src/geometry/stl';
 import { signedVolume } from '../src/geometry/mesh';
@@ -57,5 +57,38 @@ describe('sliceMesh', () => {
     const m = parseSTL(new TextEncoder().encode(text).buffer);
     expect(m.positions.length).toBe(9);
     expect(m.positions[3]).toBe(1);
+  });
+});
+
+describe('simplify', () => {
+  const circle = (r: number, n: number) => {
+    const p = [];
+    for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; p.push(pt(r * Math.cos(a), r * Math.sin(a))); }
+    return p;
+  };
+  it('never deviates more than the tolerance from the original outline', () => {
+    const orig = circle(20, 1024);
+    const [simp] = simplify([orig], 0.012);
+    expect(simp.length).toBeLessThan(orig.length);
+    expect(simp.length).toBeGreaterThan(60);
+    // every original vertex lies within tolerance of the simplified polygon
+    let worst = 0;
+    for (const q of orig) {
+      let best = Infinity;
+      for (let i = 0; i < simp.length; i++) {
+        const a = simp[i], b = simp[(i + 1) % simp.length];
+        const dx = b.X - a.X, dy = b.Y - a.Y, l2 = dx * dx + dy * dy;
+        const t = Math.max(0, Math.min(1, ((q.X - a.X) * dx + (q.Y - a.Y) * dy) / l2));
+        best = Math.min(best, Math.hypot(a.X + t * dx - q.X, a.Y + t * dy - q.Y));
+      }
+      worst = Math.max(worst, best);
+    }
+    expect(toMm(worst)).toBeLessThanOrEqual(0.012 + 1e-3);
+  });
+  it('keeps the corners of a rectangle', () => {
+    const rect = [pt(0, 0), pt(5, 0), pt(10, 0), pt(10, 10), pt(0, 10), pt(0, 5)];
+    const [simp] = simplify([rect], 0.05);
+    expect(simp.length).toBe(4);
+    expect(Math.abs(polyArea(simp))).toBeCloseTo(100, 3);
   });
 });

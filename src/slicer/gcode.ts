@@ -2,7 +2,7 @@ import type { SliceSettings } from './settings';
 import { PATH_TYPES, PATH_TYPE_LABEL, type LayerPlan, type PathType, type PrintPath } from './plan';
 
 export const SLICER_NAME = 'Flashforge Slicer';
-export const SLICER_VERSION = '0.3.4';
+export const SLICER_VERSION = '0.3.5';
 
 export interface GcodeStats {
   printTimeSec: number;
@@ -62,52 +62,109 @@ class GrowableU8 {
   done() { return this.buf.slice(0, this.len); }
 }
 
-/** Trapezoidal move-time estimate with junction slow-down (mm, mm/s, mm/s²). */
-export function pathTime(pts: number[], speed: number, accel: number, cornerVel = 5): number {
+/**
+ * Move-time estimate for a polyline, following Klipper's look-ahead planner
+ * (junction deviation from square_corner_velocity, centripetal limit,
+ * minimum_cruise_ratio smoothing). Units: mm, mm/s, mm/s². The head is at
+ * rest at both ends of the polyline.
+ */
+export function pathTime(pts: number[], speed: number, accel: number, cornerVel = 5, minCruiseRatio = 0.5): number {
   const n = pts.length / 2;
-  if (n < 2) return 0;
-  const segLen: number[] = [];
-  for (let i = 0; i < n - 1; i++) segLen.push(Math.hypot(pts[i * 2 + 2] - pts[i * 2], pts[i * 2 + 3] - pts[i * 2 + 1]));
-  // Junction limits between consecutive segments
-  const vj: number[] = new Array(segLen.length + 1).fill(0);
-  for (let i = 1; i < segLen.length; i++) {
-    const ax = pts[i * 2] - pts[i * 2 - 2], ay = pts[i * 2 + 1] - pts[i * 2 - 1];
-    const bx = pts[i * 2 + 2] - pts[i * 2], by = pts[i * 2 + 3] - pts[i * 2 + 1];
-    const la = segLen[i - 1] || 1e-9, lb = segLen[i] || 1e-9;
-    const cos = Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)));
-    // Klipper-style: v² = a·R, R from junction deviation and turn angle
-    const sinHalf = Math.sqrt(0.5 * (1 - cos));
-    const jd = (cornerVel * cornerVel * (Math.SQRT2 - 1)) / accel;
-    const R = sinHalf >= 0.999999 ? Infinity : (jd * sinHalf) / (1 - sinHalf);
-    vj[i] = Math.min(speed, Math.sqrt(accel * R));
+  if (n < 2 || speed <= 0 || accel <= 0) return 0;
+  const d: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const l = Math.hypot(pts[i * 2 + 2] - pts[i * 2], pts[i * 2 + 3] - pts[i * 2 + 1]);
+    if (l > 1e-9) d.push(l);
   }
-  // forward / backward passes
-  const vStart: number[] = new Array(segLen.length).fill(0);
-  const vEnd: number[] = new Array(segLen.length).fill(0);
-  for (let i = 0; i < segLen.length; i++) {
-    const prev = i === 0 ? 0 : vEnd[i - 1];
-    vStart[i] = Math.min(vj[i], prev);
-    vEnd[i] = Math.min(vj[i + 1], Math.sqrt(vStart[i] ** 2 + 2 * accel * segLen[i]));
-  }
-  for (let i = segLen.length - 1; i >= 0; i--) {
-    const next = i === segLen.length - 1 ? 0 : vStart[i + 1];
-    vEnd[i] = Math.min(vEnd[i], next);
-    vStart[i] = Math.min(vStart[i], Math.sqrt(vEnd[i] ** 2 + 2 * accel * segLen[i]));
-  }
-  let t = 0;
-  for (let i = 0; i < segLen.length; i++) {
-    const d = segLen[i], v0 = vStart[i], v1 = vEnd[i];
-    // distance needed to reach cruise from v0 and back to v1
-    const dAcc = Math.max(0, (speed * speed - v0 * v0) / (2 * accel));
-    const dDec = Math.max(0, (speed * speed - v1 * v1) / (2 * accel));
-    if (dAcc + dDec <= d) {
-      t += (speed - v0) / accel + (speed - v1) / accel + (d - dAcc - dDec) / speed;
-    } else {
-      // triangular profile: peak speed vp
-      const vp = Math.sqrt(Math.max(v0 * v0, (2 * accel * d + v0 * v0 + v1 * v1) / 2));
-      t += Math.max(0, vp - v0) / accel + Math.max(0, vp - v1) / accel;
-      if (vp <= v0 && vp <= v1) t += d / Math.max(vp, 1e-3);
+  const m = d.length;
+  if (m === 0) return 0;
+  const maxCruiseV2 = speed * speed;
+  const accelToDecel = accel * Math.max(0.05, 1 - minCruiseRatio);
+  const jd = (cornerVel * cornerVel * (Math.SQRT2 - 1)) / accel;
+
+  // Junction speed limits (v²) at the start of each move; 0 at the path ends.
+  const maxStartV2 = new Array<number>(m).fill(0);
+  let k = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const l = Math.hypot(pts[i * 2 + 2] - pts[i * 2], pts[i * 2 + 3] - pts[i * 2 + 1]);
+    if (l <= 1e-9) continue;
+    if (k > 0) {
+      // unit vectors of the previous and current move
+      let j = i - 1;
+      while (j >= 0 && Math.hypot(pts[i * 2] - pts[j * 2], pts[i * 2 + 1] - pts[j * 2 + 1]) <= 1e-9) j--;
+      const ax = (pts[i * 2] - pts[j * 2]) / d[k - 1], ay = (pts[i * 2 + 1] - pts[j * 2 + 1]) / d[k - 1];
+      const bx = (pts[i * 2 + 2] - pts[i * 2]) / l, by = (pts[i * 2 + 3] - pts[i * 2 + 1]) / l;
+      // Klipper: junction_cos_theta = -(a·b); a straight continuation gives -1.
+      const cosTheta = Math.max(-0.999999, Math.min(0.999999, -(ax * bx + ay * by)));
+      const sinHalf = Math.sqrt(0.5 * (1 - cosTheta));
+      const rJd = sinHalf / (1 - sinHalf);
+      const tanHalf = sinHalf / Math.sqrt(0.5 * (1 + cosTheta));
+      const centripetal = 0.5 * Math.min(l, d[k - 1]) * tanHalf * accel;
+      maxStartV2[k] = Math.min(rJd * jd * accel, centripetal, maxCruiseV2);
     }
+    k++;
+  }
+  // Forward pass: what is reachable from rest at full and at smoothed acceleration.
+  const maxSmoothedV2 = new Array<number>(m).fill(0);
+  for (let i = 1; i < m; i++) {
+    maxStartV2[i] = Math.min(maxStartV2[i], maxStartV2[i - 1] + 2 * d[i - 1] * accel);
+    maxSmoothedV2[i] = Math.min(maxStartV2[i], maxSmoothedV2[i - 1] + 2 * d[i - 1] * accelToDecel);
+  }
+  // Backward pass (Klipper LookAheadQueue.flush).
+  const startV2 = new Array<number>(m).fill(0);
+  const cruiseV2 = new Array<number>(m).fill(0);
+  const endV2 = new Array<number>(m).fill(0);
+  let nextEndV2 = 0, nextSmoothedV2 = 0, peakCruiseV2 = 0;
+  const delayed: number[] = [];
+  const setJunction = (i: number, sv2: number, cv2: number, ev2: number) => {
+    startV2[i] = sv2; cruiseV2[i] = cv2; endV2[i] = ev2;
+  };
+  for (let i = m - 1; i >= 0; i--) {
+    const deltaV2 = 2 * d[i] * accel;
+    const smoothDeltaV2 = 2 * d[i] * accelToDecel;
+    const reachableStartV2 = nextEndV2 + deltaV2;
+    const sV2 = Math.min(maxStartV2[i], reachableStartV2);
+    const reachableSmoothedV2 = nextSmoothedV2 + smoothDeltaV2;
+    const smoothedV2 = Math.min(maxSmoothedV2[i], reachableSmoothedV2);
+    if (smoothedV2 < reachableSmoothedV2) {
+      if (smoothedV2 + smoothDeltaV2 > nextSmoothedV2 || delayed.length) {
+        peakCruiseV2 = Math.min(maxCruiseV2, (smoothedV2 + reachableSmoothedV2) * 0.5);
+        if (delayed.length) {
+          let mcV2 = peakCruiseV2;
+          for (let q = delayed.length - 3; q >= 0; q -= 3) {
+            const mi = delayed[q], msV2 = delayed[q + 1], meV2 = delayed[q + 2];
+            mcV2 = Math.min(mcV2, msV2);
+            setJunction(mi, Math.min(msV2, mcV2), mcV2, Math.min(meV2, mcV2));
+          }
+          delayed.length = 0;
+        }
+      }
+      const cV2 = Math.min((sV2 + reachableStartV2) * 0.5, maxCruiseV2, peakCruiseV2);
+      setJunction(i, Math.min(sV2, cV2), cV2, Math.min(nextEndV2, cV2));
+    } else {
+      delayed.push(i, sV2, nextEndV2);
+    }
+    nextEndV2 = sV2;
+    nextSmoothedV2 = smoothedV2;
+  }
+  if (delayed.length) {
+    let mcV2 = peakCruiseV2 || maxCruiseV2;
+    for (let q = delayed.length - 3; q >= 0; q -= 3) {
+      const mi = delayed[q], msV2 = delayed[q + 1], meV2 = delayed[q + 2];
+      mcV2 = Math.min(mcV2, msV2);
+      setJunction(mi, Math.min(msV2, mcV2), mcV2, Math.min(meV2, mcV2));
+    }
+  }
+  // Trapezoid timing per move.
+  let t = 0;
+  for (let i = 0; i < m; i++) {
+    const cv2 = Math.max(cruiseV2[i], 1e-6);
+    const sv2 = Math.min(startV2[i], cv2), ev2 = Math.min(endV2[i], cv2);
+    const cv = Math.sqrt(cv2), sv = Math.sqrt(sv2), ev = Math.sqrt(ev2);
+    const accelD = (cv2 - sv2) / (2 * accel);
+    const decelD = (cv2 - ev2) / (2 * accel);
+    const cruiseD = Math.max(0, d[i] - accelD - decelD);
+    t += (cv - sv) / accel + cruiseD / cv + (cv - ev) / accel;
   }
   return t;
 }

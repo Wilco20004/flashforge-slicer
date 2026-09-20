@@ -201,8 +201,33 @@ describe('helpers', () => {
     expect(t).toBeCloseTo(0.01 + 0.99 + 0.01, 3);
   });
   it('pathTime handles triangular profiles', () => {
-    const t = pathTime([0, 0, 1, 0], 100, 10000);
+    const t = pathTime([0, 0, 1, 0], 100, 10000, 5, 0);
     expect(t).toBeCloseTo(2 * Math.sqrt(1 / 10000), 3);
+    // Klipper's minimum_cruise_ratio caps the peak of very short moves, so it is a little slower.
+    expect(pathTime([0, 0, 1, 0], 100, 10000)).toBeGreaterThan(t);
+  });
+  it('pathTime does not slow down at collinear vertices', () => {
+    const single = pathTime([0, 0, 100, 0], 200, 5000);
+    const pts: number[] = [];
+    for (let i = 0; i <= 200; i++) pts.push(i * 0.5, 0);
+    expect(pathTime(pts, 200, 5000)).toBeCloseTo(single, 3);
+  });
+  it('pathTime slows for sharp corners and reversals', () => {
+    const straight = pathTime([0, 0, 50, 0, 100, 0], 200, 5000);
+    const corner = pathTime([0, 0, 50, 0, 50, 50], 200, 5000);
+    const reversal = pathTime([0, 0, 50, 0, 0, 0], 200, 5000);
+    expect(corner).toBeGreaterThan(straight);
+    expect(reversal).toBeGreaterThan(corner);
+    // a full reversal is two moves from rest to rest
+    expect(reversal).toBeCloseTo(2 * pathTime([0, 0, 50, 0], 200, 5000), 3);
+  });
+  it('pathTime keeps a finely tessellated arc close to its ideal speed', () => {
+    const pts: number[] = [];
+    const r = 20;
+    for (let i = 0; i <= 720; i++) { const a = (i / 720) * Math.PI * 2; pts.push(r * Math.cos(a), r * Math.sin(a)); }
+    const t = pathTime(pts, 200, 5000);
+    const ideal = (2 * Math.PI * r) / 200;
+    expect(t).toBeLessThan(ideal * 1.5);
   });
   it('substitute replaces both bracket styles', () => {
     expect(substitute('M104 S[temperature] ; {layer_z} [unknown]', { temperature: '210', layer_z: '0.2' })).toBe('M104 S210 ; 0.2 [unknown]');

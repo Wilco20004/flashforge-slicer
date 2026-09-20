@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.5
+
+- **Print time estimate fixed.** The estimator treated every vertex of a
+  polyline as a full stop (a sign error in the junction formula), so parts with
+  curved or finely tessellated surfaces were reported many times slower than they
+  print. The estimate, the printer's remaining-time display (`M73`) and the
+  minimum-layer-time slow-down now follow Klipper's look-ahead planner: junction
+  deviation from the square-corner velocity, centripetal limit and
+  minimum-cruise-ratio smoothing. The G-code speeds themselves were already
+  correct.
+- **Outline simplification no longer flattens curves.** Clipper's greedy
+  `CleanPolygons` let the error accumulate along an arc, so finely tessellated
+  circles were reduced to ~6 mm chords (0.2 mm off the surface). Replaced with
+  Douglas-Peucker bounded by the resolution setting (0.012 mm).
+
 ## 0.3.4
 
 - **Camera works through Home Assistant Ingress.** Ingress strips the multipart
