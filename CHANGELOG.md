@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.4
+
+- **Camera works through Home Assistant Ingress.** Ingress strips the multipart
+  boundary from the stream's Content-Type header, which made the browser's own
+  MJPEG decoder give up after the first frame. The stream is now decoded in the
+  page (frames cut by each part's Content-Length, or by JPEG markers), so it
+  renders behind Ingress and any other proxy. Reconnects with backoff; falls back
+  to polling still images if the stream keeps failing. Shows the live frame rate.
+- Loopback addresses are accepted by the relay (camera or Moonraker on the same
+  host as the container).
+
 ## 0.3.3
 
 - **Camera reliability.** The printer's camera server restarts when told to start

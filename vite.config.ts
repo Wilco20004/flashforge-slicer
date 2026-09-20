@@ -1,14 +1,15 @@
+import http from 'node:http';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
-/** Dev-only twin of the nginx printer relay (see nginx.conf). */
+/** Dev-only twin of the nginx printer relay and settings store (see nginx.conf). */
 function printerRelay(): Plugin {
   return {
     name: 'printer-relay',
     configureServer(server) {
       let settings = '';
       server.middlewares.use((req, res, next) => {
-        const path = req.url?.split('?')[0];
+        const path = req.url?.split('?')[0] ?? '';
         if (path === '/relay-status') {
           res.statusCode = 204;
           res.setHeader('X-Printer-Relay', '1');
@@ -30,29 +31,27 @@ function printerRelay(): Plugin {
             return;
           }
         }
+        // /printer/<host>[:port]/<path>?<query>  ->  http://<host>:<port>/<path>?<query>  (streams both ways)
+        const m = /^\/printer\/([^/:]+)(?::(\d+))?(\/.*)?$/.exec(req.url ?? '');
+        if (m) {
+          const upstream = http.request(
+            { host: m[1], port: Number(m[2] ?? 8898), method: req.method, path: m[3] || '/', headers: { ...req.headers, host: `${m[1]}:${m[2] ?? 8898}` } },
+            (up) => { res.writeHead(up.statusCode ?? 502, up.headers); up.pipe(res); },
+          );
+          upstream.on('error', (err) => { if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'text/html' }); res.end(`<h1>502 relay</h1><p>${err.message}</p>`); });
+          res.on('close', () => upstream.destroy());
+          req.pipe(upstream);
+          return;
+        }
         next();
       });
     },
   };
 }
 
-// Fully static build: everything (slicing included) runs in the browser.
 export default defineConfig({
   plugins: [react(), printerRelay()],
   base: './',
-  server: {
-    proxy: {
-      '^/printer/': {
-        target: 'http://127.0.0.1:8898',
-        changeOrigin: true,
-        router: (req) => {
-          const m = /^\/printer\/([^/]+)/.exec(req.url ?? '');
-          return m ? `http://${m[1]}` : 'http://127.0.0.1:8898';
-        },
-        rewrite: (path) => path.replace(/^\/printer\/[^/]+/, ''),
-      },
-    },
-  },
   build: {
     outDir: 'dist',
     target: 'es2020',

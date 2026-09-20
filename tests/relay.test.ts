@@ -9,6 +9,7 @@ describe('printer relay helpers', () => {
     expect(isPrivateIPv4('192.168.0.5')).toBe(true);
     expect(isPrivateIPv4('172.16.4.2')).toBe(true);
     expect(isPrivateIPv4('172.32.0.1')).toBe(false);
+    expect(isPrivateIPv4('127.0.0.1')).toBe(true);
     expect(isPrivateIPv4('8.8.8.8')).toBe(false);
     expect(isPrivateIPv4('printer.local')).toBe(false);
   });

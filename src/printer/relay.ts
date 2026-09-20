@@ -49,6 +49,7 @@ export function isPrivateIPv4(host: string): boolean {
   if (a === 192 && b === 168) return true;
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 169 && b === 254) return true;
+  if (a === 127) return true; // loopback: a camera or Moonraker on the same host as the relay
   return false;
 }
 

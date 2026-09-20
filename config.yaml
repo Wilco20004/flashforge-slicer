@@ -1,5 +1,5 @@
 name: Flashforge Slicer
-version: "0.3.3"
+version: "0.3.4"
 slug: flashforge_slicer
 description: Browser-based 3D print slicer for the Flashforge Adventurer 5M / 5M Pro
 url: https://github.com/wilco20004/flashforge-slicer
