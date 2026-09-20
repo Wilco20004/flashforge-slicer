@@ -308,7 +308,11 @@ export function App() {
         )}
         {mode === 'monitor' && printerConfigured && (
           <div className="overlay monitor-overlay">
-            <MonitorView cfg={ff} relay={Boolean(relay)} detail={live} error={printerStatus.error} updatedAt={printerStatus.updatedAt} onRefresh={printerStatus.refresh} />
+            <MonitorView
+              cfg={ff} relay={Boolean(relay)} detail={live} error={printerStatus.error} updatedAt={printerStatus.updatedAt} onRefresh={printerStatus.refresh}
+              customCameraUrl={persisted.printer.cameraUrl}
+              onCustomCameraUrl={(url) => setPersisted((p) => ({ ...p, printer: { ...p.printer, cameraUrl: url || undefined } }))}
+            />
           </div>
         )}
         {mode === 'preview' && result && (

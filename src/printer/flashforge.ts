@@ -191,18 +191,28 @@ export const setCameraStream = (cfg: FlashforgeConfig, relay: boolean, on: boole
  * URL to show the printer's MJPEG camera from this page. Through the relay when
  * available (required on HTTPS pages); otherwise the printer's own URL.
  */
-export function cameraUrl(cfg: FlashforgeConfig, detail: PrinterDetail | null, relay: boolean): string | null {
-  const raw = detail?.cameraStreamUrl?.trim();
+export function cameraUrl(cfg: FlashforgeConfig, detail: PrinterDetail | null, relay: boolean, override?: string | null): string | null {
+  const raw = (override?.trim() || detail?.cameraStreamUrl?.trim()) ?? '';
   if (!raw) return null;
+  return relayIfLan(raw, relay, splitHost(cfg.host).host);
+}
+
+/** Route an http:// URL through the relay when it points at a private LAN address. */
+export function relayIfLan(raw: string, relay: boolean, fallbackHost?: string): string | null {
   try {
-    const u = new URL(raw);
-    const host = u.hostname || splitHost(cfg.host).host;
-    const port = Number(u.port || 8080);
-    if (relay && isPrivateIPv4(host)) return relayUrl(host, port, u.pathname) + u.search;
-    return raw;
+    const u = new URL(/^https?:\/\//.test(raw) ? raw : `http://${raw}`);
+    const host = u.hostname || fallbackHost || '';
+    const port = Number(u.port || (u.protocol === 'https:' ? 443 : 80));
+    if (relay && u.protocol === 'http:' && isPrivateIPv4(host)) return relayUrl(host, port, u.pathname) + u.search;
+    return u.toString();
   } catch {
     return null;
   }
+}
+
+/** The stream URL Flashforge firmware uses for a built-in or USB camera. */
+export function defaultCameraUrl(cfg: FlashforgeConfig): string {
+  return `http://${splitHost(cfg.host).host}:8080/?action=stream`;
 }
 
 const STATUS_LABEL: Record<string, string> = {

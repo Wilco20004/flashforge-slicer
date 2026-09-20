@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1
+
+- **USB / external cameras.** When the printer does not advertise a camera, Monitor
+  offers "Try the printer's camera port" (the firmware's port-8080 MJPEG stream a
+  recognised USB camera appears on) and a field for any other MJPEG stream URL.
+  The URL is saved with the printer and relayed like the built-in stream.
+
 ## 0.3.0
 
 - **Monitor mode.** A third tab next to Prepare and Preview shows the live state

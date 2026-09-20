@@ -18,6 +18,8 @@ export interface PrinterConfig {
   leveling: boolean;
   /** Set when "Test" last succeeded for the current ff settings. */
   verified?: VerifiedPrinter | null;
+  /** Manual MJPEG camera URL when the printer does not advertise one (e.g. a USB camera). */
+  cameraUrl?: string;
 }
 
 export const defaultPrinterConfig = (): PrinterConfig => ({

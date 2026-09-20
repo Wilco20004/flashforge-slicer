@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  cameraUrl, cancelPrint, pausePrint, resumePrint, setCameraStream, setLight, statusLabel, isPrintingStatus,
+  cameraUrl, defaultCameraUrl, cancelPrint, pausePrint, resumePrint, setCameraStream, setLight, statusLabel, isPrintingStatus,
   type FlashforgeConfig, type PrinterDetail,
 } from '../printer/flashforge';
 import { formatDuration } from '../slicer/gcode';
@@ -13,6 +13,9 @@ export interface MonitorViewProps {
   error: string | null;
   updatedAt: number | null;
   onRefresh: () => void;
+  /** Manual camera URL (persisted with the printer). */
+  customCameraUrl?: string;
+  onCustomCameraUrl: (url: string) => void;
 }
 
 export function MonitorView(p: MonitorViewProps) {
@@ -22,8 +25,9 @@ export function MonitorView(p: MonitorViewProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const d = p.detail;
-  const cam = cameraUrl(p.cfg, d, p.relay);
-  const hasCamera = Boolean(d?.cameraStreamUrl);
+  const cam = cameraUrl(p.cfg, d, p.relay, p.customCameraUrl);
+  const hasCamera = Boolean(d?.cameraStreamUrl) || Boolean(p.customCameraUrl?.trim());
+  const [urlDraft, setUrlDraft] = useState(p.customCameraUrl ?? '');
   const printing = isPrintingStatus(d?.status);
   const paused = (d?.status ?? '').toLowerCase().startsWith('pause');
 
@@ -57,8 +61,29 @@ export function MonitorView(p: MonitorViewProps) {
         ) : (
           <div className="camera-placeholder">
             {!d ? <p>Waiting for the printer…</p>
-              : !hasCamera ? <p>This printer reports no camera. The Adventurer 5M Pro has one built in; on the 5M a supported USB camera can be added.</p>
-              : camError ? <p>The camera stream did not load.{pageIsHttps() && !p.relay ? ' On an HTTPS page the stream needs the relay (Docker / Home Assistant version).' : ''} <button className="btn small ghost" onClick={() => { setCamError(false); setCamKey((k) => k + 1); }}>Retry</button></p>
+              : !hasCamera ? (
+                <div className="camera-setup">
+                  <p>The printer does not report a camera. The Adventurer 5M Pro has one built in; on the 5M the firmware exposes a supported USB camera on port 8080 once it recognises it.</p>
+                  <div className="row gap wrap">
+                    <button className="btn small primary" onClick={() => { p.onCustomCameraUrl(defaultCameraUrl(p.cfg)); setCamera(true); }}>Try the printer's camera port</button>
+                  </div>
+                  <label className="field column">
+                    <span>Or any MJPEG stream URL</span>
+                    <span className="row gap">
+                      <input value={urlDraft} placeholder={defaultCameraUrl(p.cfg)} onChange={(e) => setUrlDraft(e.target.value)} />
+                      <button className="btn small" disabled={!urlDraft.trim()} onClick={() => { p.onCustomCameraUrl(urlDraft.trim()); setCamera(true); }}>Use</button>
+                    </span>
+                  </label>
+                </div>
+              )
+              : camError ? (
+                <p>
+                  The camera stream did not load from <code>{cam}</code>.
+                  {pageIsHttps() && !p.relay ? ' On an HTTPS page the stream needs the relay (Docker / Home Assistant version).' : ''}
+                  {' '}<button className="btn small ghost" onClick={() => { setCamError(false); setCamKey((k) => k + 1); }}>Retry</button>
+                  {p.customCameraUrl ? <button className="btn small ghost" onClick={() => { p.onCustomCameraUrl(''); setCamera(false); setCamError(false); }}>Clear URL</button> : null}
+                </p>
+              )
               : <p>Camera is off. <button className="btn small" onClick={() => setCamera(true)}>Show camera</button></p>}
           </div>
         )}
@@ -68,6 +93,7 @@ export function MonitorView(p: MonitorViewProps) {
             <button className="btn small ghost" disabled={busy !== null} onClick={() => run('Light', () => setLight(p.cfg, p.relay, d?.lightStatus !== 'open'))}>
               Light {d?.lightStatus === 'open' ? 'off' : 'on'}
             </button>
+            {p.customCameraUrl ? <button className="btn small ghost" title={p.customCameraUrl} onClick={() => { p.onCustomCameraUrl(''); setCamera(false); }}>Forget camera URL</button> : null}
           </div>
         )}
       </div>

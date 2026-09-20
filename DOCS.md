@@ -34,7 +34,9 @@ Once a printer has been tested and saved, the **Monitor** tab shows its live
 status: progress, current layer, remaining and elapsed time, nozzle and bed
 temperatures, speed and fan. From there you can pause, resume or cancel the
 print and toggle the LED light. On an Adventurer 5M Pro (or a 5M with a
-supported USB camera) tick **Camera** to see the live stream. "Upload & print"
+supported USB camera) tick **Camera** to see the live stream. If the printer does
+not report a camera, use **Try the printer's camera port**, or enter any MJPEG
+stream URL (for example from a separate webcam server). "Upload & print"
 opens Monitor automatically.
 
 ## Notes
