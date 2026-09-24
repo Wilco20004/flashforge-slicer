@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.0
+
+- **Failure watch.** The add-on now polls the printer on its own schedule and
+  raises Home Assistant entities when something looks wrong: the nozzle or bed
+  drifting from target and staying there, a firmware error code, a print that
+  paused on its own, a layer taking far longer than the slice predicted, or the
+  printer going unreachable mid-print. Three entities arrive by MQTT discovery,
+  with a last will so they go unavailable rather than stale if the watcher dies.
+  Every threshold is an add-on option.
+  - It runs in the add-on rather than the page because the page stops polling the
+    moment its tab is hidden, which is when a print is least supervised.
+  - The stall rule is judged against the per-layer times from the slice itself,
+    recorded when a file is sent, so a legitimately slow layer gets the time its
+    own prediction earns it rather than tripping a flat timeout.
+  - The broker password is an add-on option, not part of the settings the web UI
+    writes: nginx serves that file to anyone who can reach the add-on.
+  - **It reads telemetry only.** Bed detachment and spaghetti are not detectable
+    this way — a part that comes off the bed leaves the firmware extruding into
+    the air with correct temperatures, an advancing layer counter and no error.
+    That needs a camera and a trained model, and this does not claim to be one.
+
 ## 0.7.4
 
 - **No title bar of its own inside Home Assistant.** Opened through Ingress the

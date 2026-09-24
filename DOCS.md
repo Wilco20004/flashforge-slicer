@@ -121,6 +121,97 @@ Set **QR prefix** to this page's own address ending in `#spool=` — for example
 Scanning it with a phone opens the slicer with that spool already selected.
 Leave the prefix blank and the QR just holds the spool id.
 
+## Failure watch
+
+The add-on watches the printer on its own schedule and can raise a Home
+Assistant entity when something looks wrong. It runs inside the add-on, not in
+the page, because the page stops polling the moment its tab is hidden — which is
+exactly when a print is least supervised.
+
+### What it can and cannot see
+
+It reads the printer's own telemetry, so it catches:
+
+- the nozzle or bed drifting away from its target and staying there
+- an error code from the firmware
+- a print that paused on its own (filament runout looks the same from here)
+- a layer that has been going far longer than the slice predicted for it
+- the printer going unreachable mid-print
+
+**It cannot see the print itself.** Bed detachment, spaghetti, a layer shift, a
+warped corner: when a part comes off the bed the firmware carries on extruding
+into the air with correct temperatures, an advancing layer counter and no error,
+and nothing in the telemetry says otherwise. Catching that needs a camera and a
+trained model — this is not that, and it would be worse than useless to imply it
+was. If you want detachment covered, run something like
+[Obico](https://www.obico.io/) alongside.
+
+### Setting it up
+
+In the add-on's **Configuration** tab, fill in your MQTT broker — for the
+Mosquitto add-on that is host `core-mosquitto`, port `1883`, and a Home
+Assistant user's credentials. The broker password lives here rather than in the
+settings the web UI writes, because the add-on serves that settings file to
+anyone who can reach it.
+
+The printer's address is not asked for twice: the watcher reads the one you
+already saved under **Send to printer**.
+
+Three entities appear in Home Assistant by MQTT discovery:
+
+| entity | what it is |
+| --- | --- |
+| `binary_sensor.*_print_problem` | `problem` class; on whenever any rule is firing |
+| `sensor.*_printer_state` | the printer's status, with everything else as attributes |
+| `sensor.*_print_problem_summary` | the fault in a sentence, for a notification |
+
+All three carry the same attributes, so an automation can read `faults`,
+`layer`, `progress`, `nozzle`, `bed` and `file_name` off any of them. They go
+*unavailable* rather than stale if the watcher stops, via a last will.
+
+A notification automation is then the ordinary Home Assistant kind:
+
+```yaml
+automation:
+  - alias: Print problem
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.adventurer_5m_print_problem
+        to: "on"
+        for: "00:01:00"
+    action:
+      - service: notify.mobile_app_phone
+        data:
+          title: Printer problem
+          message: "{{ state_attr('binary_sensor.adventurer_5m_print_problem', 'summary') }}"
+```
+
+### Tuning it
+
+Every threshold is an add-on option, because the right value depends on the
+room: a draughty garage legitimately runs a bed a few degrees under target.
+
+| option | default | meaning |
+| --- | --- | --- |
+| `nozzle_tolerance_c` | 15 | how far the nozzle may sit from target |
+| `bed_tolerance_c` | 10 | the same for the bed |
+| `temp_grace_seconds` | 120 | how long a deviation must last before it counts |
+| `stall_factor` | 4 | multiple of a layer's predicted time before it counts as stalled |
+| `stall_min_seconds` | 600 | ...but never less than this |
+| `offline_seconds` | 120 | how long unreachable counts as a fault |
+| `watch_poll_seconds` | 15 | how often to ask the printer |
+| `watch_enabled` | true | switch the whole thing off |
+
+The stall rule uses the per-layer times from the slice itself, recorded when you
+press **Upload & print**, so a legitimately slow layer gets the time its own
+prediction earns it. Print a file some other way and it falls back to the flat
+`stall_min_seconds`.
+
+Running under plain Docker the same settings are environment variables:
+`MQTT_HOST`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `NOZZLE_TOLERANCE_C`, and so on.
+With no broker set the watcher still runs and still shows its state on the
+Monitor tab; it simply has nowhere to publish.
+
 ## Notes
 
 - The add-on has no options; its only state is the shared settings file in `/data`.

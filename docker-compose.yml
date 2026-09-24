@@ -8,3 +8,9 @@ services:
       - "8099:8099"
     volumes:
       - ./data:/data   # settings and saved printer
+    # The failure watcher. It runs regardless; these only add the Home Assistant
+    # MQTT entities. Under the add-on these come from its Configuration tab.
+    # environment:
+    #   MQTT_HOST: 192.168.1.10
+    #   MQTT_USERNAME: printer
+    #   MQTT_PASSWORD: secret

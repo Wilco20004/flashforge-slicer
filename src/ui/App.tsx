@@ -35,13 +35,19 @@ interface Persisted extends Stamped {
   /** The spool the slice follows, or null for the bare filament preset. */
   spoolId: string | null;
   labels: LabelForgeConfig;
+  /**
+   * The plan for the file last sent to the printer. The add-on's failure
+   * watcher reads it to judge a layer that is taking too long against what this
+   * slice predicted for that layer, rather than against a flat timeout.
+   */
+  lastPrint: { fileName: string; layerTimes: number[]; startedAt: number } | null;
 }
 
 const defaultPersisted = (): Persisted => ({
   updatedAt: 0,
   machineId: DEFAULT_MACHINE_ID, filamentId: DEFAULT_FILAMENT_ID,
   processId: defaultProcessForNozzle(0.4).id, overrides: {}, printer: defaultPrinterConfig(),
-  spools: [], spoolId: null, labels: defaultLabelForgeConfig(),
+  spools: [], spoolId: null, labels: defaultLabelForgeConfig(), lastPrint: null,
 });
 
 function normalize(p: Partial<Persisted> | null): Persisted {
@@ -490,6 +496,12 @@ export function App() {
           result={result} fileName={fileName} stale={resultStale}
           printer={persisted.printer} onPrinter={(printer) => setPersisted((p) => ({ ...p, printer }))}
           onPrintStarted={() => {
+            if (result) {
+              setPersisted((p) => ({
+                ...p,
+                lastPrint: { fileName, layerTimes: result.stats.layerTimes, startedAt: Date.now() },
+              }));
+            }
             const grams = result?.stats.filamentG ?? 0;
             if (spool && grams > 0) {
               bookUsage(grams);

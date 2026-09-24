@@ -286,3 +286,7 @@ code { background: var(--panel-2); padding: 0 4px; border-radius: 4px; }
   .filament-view { grid-template-columns: 1fr; }
   .spool-list { border-right: 0; border-bottom: 1px solid var(--border); min-height: 0; }
 }
+
+/* The add-on's failure watch, on the monitor's status column. */
+.watch { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.watch h4 { margin-top: 0; }

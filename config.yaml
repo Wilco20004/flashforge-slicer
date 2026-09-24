@@ -1,5 +1,5 @@
 name: Flashforge Slicer
-version: "0.7.4"
+version: "0.8.0"
 slug: flashforge_slicer
 description: Browser-based 3D print slicer for the Flashforge Adventurer 5M / 5M Pro
 url: https://github.com/wilco20004/flashforge-slicer
@@ -19,5 +19,27 @@ ports:
   8099/tcp: null
 ports_description:
   8099/tcp: Slicer web UI (optional direct access; not required when using Ingress)
-options: {}
-schema: {}
+# The failure watcher. The broker password lives here rather than in the
+# settings the web UI writes, because nginx serves that file to anyone who can
+# reach the add-on.
+options:
+  watch_enabled: true
+  mqtt_host: ""
+  mqtt_port: 1883
+  mqtt_username: ""
+  mqtt_password: ""
+schema:
+  watch_enabled: bool?
+  mqtt_host: str?
+  mqtt_port: port?
+  mqtt_username: str?
+  mqtt_password: password?
+  mqtt_discovery_prefix: str?
+  mqtt_base_topic: str?
+  watch_poll_seconds: int(5,300)?
+  nozzle_tolerance_c: int(1,100)?
+  bed_tolerance_c: int(1,100)?
+  temp_grace_seconds: int(10,3600)?
+  stall_factor: float?
+  stall_min_seconds: int(60,7200)?
+  offline_seconds: int(30,3600)?

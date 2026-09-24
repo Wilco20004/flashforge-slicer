@@ -12,9 +12,15 @@ COPY tests tests
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime
+# node runs the failure watcher; the bundle carries its own dependencies, so
+# there is no node_modules tree in this image.
+RUN apk add --no-cache nodejs
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker-entrypoint.d/10-data-dir.sh /docker-entrypoint.d/10-data-dir.sh
-RUN chmod +x /docker-entrypoint.d/10-data-dir.sh && mkdir -p /data && chown nginx:nginx /data
+COPY docker-entrypoint.d/20-watcher.sh /docker-entrypoint.d/20-watcher.sh
+COPY --from=build /app/dist-watch/watcher.mjs /app/watcher.mjs
+RUN chmod +x /docker-entrypoint.d/10-data-dir.sh /docker-entrypoint.d/20-watcher.sh \
+    && mkdir -p /data && chown nginx:nginx /data
 COPY --from=build /app/dist /usr/share/nginx/html
 # Settings store (Home Assistant mounts its persistent add-on storage here).
 VOLUME ["/data"]

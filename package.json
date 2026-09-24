@@ -1,26 +1,29 @@
 {
   "name": "flashforge-slicer",
   "private": true,
-  "version": "0.7.4",
+  "version": "0.8.0",
   "license": "MIT",
   "repository": "github:wilco20004/flashforge-slicer",
   "type": "module",
   "description": "Browser-based FDM slicer for the Flashforge Adventurer 5M / 5M Pro",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && npm run build:watch",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:watch": "vite build --config vite.watch.config.ts"
   },
   "dependencies": {
     "clipper-lib": "^6.4.2",
     "fflate": "^0.8.2",
+    "mqtt": "^5.16.0",
     "qrcode-generator": "^2.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.170.0"
   },
   "devDependencies": {
+    "@types/node": "^20.19.43",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/three": "^0.170.0",

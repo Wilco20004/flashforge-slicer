@@ -6,6 +6,7 @@ import {
 import { formatDuration } from '../slicer/gcode';
 import { pageIsHttps } from '../printer/relay';
 import { MjpegView } from './MjpegView';
+import { useWatchState } from './useWatchState';
 
 export interface MonitorViewProps {
   cfg: FlashforgeConfig;
@@ -57,6 +58,7 @@ export function MonitorView(p: MonitorViewProps) {
   };
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const watch = useWatchState();
   const d = p.detail;
   const cam = cameraUrl(p.cfg, d, p.relay, p.customCameraUrl);
   const hasCamera = Boolean(d?.cameraStreamUrl) || Boolean(p.customCameraUrl?.trim());
@@ -174,6 +176,16 @@ export function MonitorView(p: MonitorViewProps) {
           <button className="btn small ghost" onClick={p.onRefresh}>Refresh</button>
         </div>
         {msg && <p className={`status ${msg.includes('failed') ? 'err' : 'ok'}`}>{msg}</p>}
+        {watch && (
+          <div className="watch">
+            <h4>Failure watch</h4>
+            <p className={`status ${watch.faults.length ? 'err' : 'ok'}`}>{watch.summary}</p>
+            <p className="hint">
+              Watches the printer's own readings from the add-on, whether or not this page is open. It cannot see
+              the print itself, so a part coming off the bed is not something it can catch.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
